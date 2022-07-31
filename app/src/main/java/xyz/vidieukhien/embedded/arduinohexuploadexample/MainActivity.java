@@ -91,23 +91,26 @@ public class MainActivity extends AppCompatActivity {
                 {
                     UsbDevice grantedDevice = intent.getExtras().getParcelable(UsbManager.EXTRA_DEVICE);
                     usbPermissionGranted(grantedDevice.getDeviceName());
-                    Intent it = new Intent(UsbSerialManager.ACTION_USB_PERMISSION_GRANTED);
-                    context.sendBroadcast(it);
-
+//                    Intent it = new Intent(UsbSerialManager.ACTION_USB_PERMISSION_GRANTED);
+//                    context.sendBroadcast(it);
+                    Toast.makeText(context, "USB permission granted", Toast.LENGTH_SHORT).show();
                 } else // User not accepted our USB connection. Send an Intent to the Main Activity
                 {
-                    Intent it = new Intent(UsbSerialManager.ACTION_USB_PERMISSION_NOT_GRANTED);
-                    context.sendBroadcast(it);
+//                    Intent it = new Intent(UsbSerialManager.ACTION_USB_PERMISSION_NOT_GRANTED);
+//                    context.sendBroadcast(it);
+                    Toast.makeText(context, "USB Permission denied", Toast.LENGTH_SHORT).show();
                 }
             } else if (intent.getAction().equals(UsbManager.ACTION_USB_DEVICE_ATTACHED)) {
-                Intent it = new Intent(UsbSerialManager.ACTION_USB_CONNECT);
-                context.sendBroadcast(it);
-
+//                Intent it = new Intent(UsbSerialManager.ACTION_USB_CONNECT);
+//                context.sendBroadcast(it);
+                Toast.makeText(context, "USB connected", Toast.LENGTH_SHORT).show();
+                usbConnectChange(UsbConnectState.CONNECT);
             } else if (intent.getAction().equals(UsbManager.ACTION_USB_DEVICE_DETACHED)) {
                 // Usb device was disconnected. send an intent to the Main Activity
-                Intent it = new Intent(UsbSerialManager.ACTION_USB_DISCONNECTED);
-                context.sendBroadcast(it);
-
+//                Intent it = new Intent(UsbSerialManager.ACTION_USB_DISCONNECTED);
+//                context.sendBroadcast(it);
+                Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show();
+                usbConnectChange(UsbConnectState.DISCONNECTED);
             }
         }
     };
