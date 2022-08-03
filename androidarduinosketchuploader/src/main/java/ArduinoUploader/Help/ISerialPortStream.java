@@ -1,9 +1,6 @@
 package ArduinoUploader.Help;
 
 import android.content.Context;
-import android.hardware.usb.UsbDevice;
-
-import java.util.HashMap;
 
 public interface ISerialPortStream {
     // Parity Values
@@ -36,7 +33,7 @@ public interface ISerialPortStream {
 
     void setContext(Context context);
 
-    void setBaudRate​(int newBaudRate);
+    void setBaudRate(int newBaudRate);
 
     void setReadTimeout(int miliseconds);
 
@@ -50,23 +47,23 @@ public interface ISerialPortStream {
 
     void setRtsEnable(boolean enable);
 
-    void setNumDataBits​(int newDataBits);
+    void setNumDataBits(int newDataBits);
 
-    void setNumStopBits​(int newStopBits);
+    void setNumStopBits(int newStopBits);
 
-    void setParity​(int newParity);
+    void setParity(int newParity);
 
-    int readBytes​(byte[] buffer, int bytesToRead); // Reads up to bytesToRead raw data bytes from the serial port and
+    int readBytes(byte[] buffer, int bytesToRead); // Reads up to bytesToRead raw data bytes from the serial port and
     // stores them in the buffer.
 
-    int readBytes​(byte[] buffer, int bytesToRead, int offset); // Reads up to bytesToRead raw data bytes from the
+    int readBytes(byte[] buffer, int bytesToRead, int offset); // Reads up to bytesToRead raw data bytes from the
     // serial port and stores them in the buffer
     // starting at the indicated offset.
 
-    int writeBytes​(byte[] buffer, int bytesToWrite);// Writes up to bytesToWrite raw data bytes from the buffer
+    int writeBytes(byte[] buffer, int bytesToWrite);// Writes up to bytesToWrite raw data bytes from the buffer
     // parameter to the serial port.
 
-    int writeBytes​(byte[] buffer, int bytesToWrite, int offset);// Writes up to bytesToWrite raw data bytes from the
+    int writeBytes(byte[] buffer, int bytesToWrite, int offset);// Writes up to bytesToWrite raw data bytes from the
     // buffer parameter to the serial port starting at
     // the indicated offset.
     void DiscardInBuffer();

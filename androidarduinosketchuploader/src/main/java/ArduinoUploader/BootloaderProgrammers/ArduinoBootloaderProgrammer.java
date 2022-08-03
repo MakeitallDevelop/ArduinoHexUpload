@@ -133,7 +133,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
             getLogger().Trace(String.format("Sending %1$s bytes: %2$s", length, System.getProperty("line.separator"))
                     + String.format("%1$s", BitConverter.toString(bytes)));
         // getSerialPort().Write(bytes, 0, length);//) la offset tu 0
-        getSerialPort().writeBytes​(bytes, length, 0);
+        getSerialPort().writeBytes(bytes, length, 0);
     }
 
     protected <TResponse extends Response> TResponse Receive(TResponse responseType) {
@@ -211,7 +211,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
         byte[] bytes = new byte[1];
         try {
             // getSerialPort().Read(bytes, 0, 1);//0 la offset
-            int numRead = getSerialPort().readBytes​(bytes, 1, 0);
+            int numRead = getSerialPort().readBytes(bytes, 1, 0);
             if (numRead < 0)
                 throw new TimeoutException();
             if (getLogger() != null)
@@ -232,7 +232,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
             while (retrieved < length) {
                 // retrieved += getSerialPort().Read(bytes, retrieved, length -
                 // retrieved);//retrieved la offset
-                int numRead = getSerialPort().readBytes​(bytes, length - retrieved, retrieved);
+                int numRead = getSerialPort().readBytes(bytes, length - retrieved, retrieved);
                 if (numRead < 0) {
                     throw new TimeoutException();
                 }

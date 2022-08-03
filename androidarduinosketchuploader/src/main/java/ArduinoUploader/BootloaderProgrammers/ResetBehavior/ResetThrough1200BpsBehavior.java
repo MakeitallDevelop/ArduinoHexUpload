@@ -77,9 +77,9 @@ public class ResetThrough1200BpsBehavior<E extends ISerialPortStream> implements
 
         E tempVar = SerialStreamHelper.newInstance(inferedClass, mContext, newPort, config.getBaudRate());
         // new SerialPortStream(newPort, config.getBaudRate());
-        tempVar.setNumDataBits​(8);
-        tempVar.setParity​(ISerialPortStream.NO_PARITY);
-        tempVar.setNumStopBits​(ISerialPortStream.ONE_STOP_BIT);
+        tempVar.setNumDataBits(8);
+        tempVar.setParity(ISerialPortStream.NO_PARITY);
+        tempVar.setNumStopBits(ISerialPortStream.ONE_STOP_BIT);
         tempVar.setDtrEnable(true);
         tempVar.setRtsEnable(true);
         return tempVar;

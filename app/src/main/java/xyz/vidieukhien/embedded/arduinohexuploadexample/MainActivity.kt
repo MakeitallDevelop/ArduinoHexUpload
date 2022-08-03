@@ -1,356 +1,283 @@
-package xyz.vidieukhien.embedded.arduinohexuploadexample;
+package xyz.vidieukhien.embedded.arduinohexuploadexample
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.res.AssetManager;
-import android.hardware.usb.UsbDevice;
-import android.hardware.usb.UsbManager;
-import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
-import android.text.TextUtils;
-import android.util.Log;
-import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.TextView;
-import android.widget.Toast;
+import ArduinoUploader.ArduinoSketchUploader
+import ArduinoUploader.ArduinoUploaderException
+import ArduinoUploader.Config.Arduino
+import ArduinoUploader.Config.McuIdentifier
+import ArduinoUploader.Config.Protocol
+import ArduinoUploader.IArduinoUploaderLogger
+import CSharpStyle.IProgress
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.os.Bundle
+import android.text.TextUtils
+import android.util.Log
+import android.view.View
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.databinding.DataBindingUtil
+import com.felhr.usbserial.UsbSerialDevice
+import kr.co.makeitall.arduino.Boards
+import kr.co.makeitall.arduino.LineReader
+import kr.co.makeitall.arduino.SerialPortStreamImpl
+import kr.co.makeitall.arduino.UsbSerialManager
+import xyz.vidieukhien.embedded.arduinohexuploadexample.databinding.ActivityMainBinding
+import java.io.InputStreamReader
+import java.io.Reader
 
-import com.felhr.usbserial.UsbSerialDevice;
+class MainActivity : AppCompatActivity() {
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.util.Collection;
-import java.util.Map;
-
-import ArduinoUploader.ArduinoSketchUploader;
-import ArduinoUploader.ArduinoUploaderException;
-import ArduinoUploader.Config.Arduino;
-import ArduinoUploader.Config.McuIdentifier;
-import ArduinoUploader.Config.Protocol;
-import ArduinoUploader.IArduinoUploaderLogger;
-import CSharpStyle.IProgress;
-
-public class MainActivity extends AppCompatActivity {
-    public static final String TAG = MainActivity.class.getSimpleName();
-    private UsbSerialManager usbSerialManager;
-
-    public enum UsbConnectState {
-        DISCONNECTED,
-        CONNECT
+    enum class UsbConnectState {
+        DISCONNECTED, CONNECT
     }
 
-    private final BroadcastReceiver mUsbNotifyReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            switch (intent.getAction()) {
-                //Get intent
-                case UsbSerialManager.ACTION_USB_PERMISSION_GRANTED: // USB PERMISSION GRANTED
-                    Toast.makeText(context, "USB permission granted", Toast.LENGTH_SHORT).show();
-                    break;
-                case UsbSerialManager.ACTION_USB_PERMISSION_NOT_GRANTED: // USB PERMISSION NOT GRANTED
-                    Toast.makeText(context, "USB Permission denied", Toast.LENGTH_SHORT).show();
-                    break;
-                case UsbSerialManager.ACTION_NO_USB: // NO USB CONNECTED
-                    Toast.makeText(context, "No USB connected", Toast.LENGTH_SHORT).show();
-                    break;
-                case UsbSerialManager.ACTION_USB_DISCONNECTED: // USB DISCONNECTED
-                    Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show();
-                    usbConnectChange(UsbConnectState.DISCONNECTED);
-                    break;
-                case UsbSerialManager.ACTION_USB_CONNECT: // USB DISCONNECTED
-                    Toast.makeText(context, "USB connected", Toast.LENGTH_SHORT).show();
-                    usbConnectChange(UsbConnectState.CONNECT);
-                    break;
-                case UsbSerialManager.ACTION_USB_NOT_SUPPORTED: // USB NOT SUPPORTED
-                    Toast.makeText(context, "USB device not supported", Toast.LENGTH_SHORT).show();
-                    break;
-                case UsbSerialManager.ACTION_USB_READY:
-                    Toast.makeText(context, "Usb device ready", Toast.LENGTH_SHORT).show();
-                    break;
-                case UsbSerialManager.ACTION_USB_DEVICE_NOT_WORKING:
-                    Toast.makeText(context, "USB device not working", Toast.LENGTH_SHORT).show();
-                    break;
+    private val mUsbNotifyReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                UsbSerialManager.ACTION_USB_PERMISSION_GRANTED ->
+                    Toast.makeText(context, "USB permission granted", Toast.LENGTH_SHORT).show()
+
+                UsbSerialManager.ACTION_USB_PERMISSION_NOT_GRANTED ->
+                    Toast.makeText(context, "USB Permission denied", Toast.LENGTH_SHORT).show()
+
+                UsbSerialManager.ACTION_NO_USB ->
+                    Toast.makeText(context, "No USB connected", Toast.LENGTH_SHORT).show()
+
+                UsbSerialManager.ACTION_USB_DISCONNECTED -> {
+                    Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show()
+                    usbConnectChange(UsbConnectState.DISCONNECTED)
+                }
+
+                UsbSerialManager.ACTION_USB_CONNECT -> {
+                    Toast.makeText(context, "USB connected", Toast.LENGTH_SHORT).show()
+                    usbConnectChange(UsbConnectState.CONNECT)
+                }
+
+                UsbSerialManager.ACTION_USB_NOT_SUPPORTED ->
+                    Toast.makeText(context, "USB device not supported", Toast.LENGTH_SHORT).show()
+
+                UsbSerialManager.ACTION_USB_READY ->
+                    Toast.makeText(context, "Usb device ready", Toast.LENGTH_SHORT).show()
+
+                UsbSerialManager.ACTION_USB_DEVICE_NOT_WORKING ->
+                    Toast.makeText(context, "USB device not working", Toast.LENGTH_SHORT).show()
             }
         }
-    };
-    private final BroadcastReceiver mUsbHardwareReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent.getAction().equals(UsbSerialManager.ACTION_USB_PERMISSION_REQUEST)) {
-                boolean granted = intent.getExtras().getBoolean(UsbManager.EXTRA_PERMISSION_GRANTED);
-                if (granted) // User accepted our USB connection. Try to open the device as a serial port
-                {
-                    UsbDevice grantedDevice = intent.getExtras().getParcelable(UsbManager.EXTRA_DEVICE);
-                    usbPermissionGranted(grantedDevice.getDeviceName());
+    }
+    private val mUsbHardwareReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == UsbSerialManager.ACTION_USB_PERMISSION_REQUEST) {
+                val granted = intent.extras!!.getBoolean(UsbManager.EXTRA_PERMISSION_GRANTED)
+                if (granted) { // User accepted our USB connection. Try to open the device as a serial port
+                    val grantedDevice = intent.extras!!.getParcelable<UsbDevice>(UsbManager.EXTRA_DEVICE)
+                    usbPermissionGranted(grantedDevice!!.deviceName)
 //                    Intent it = new Intent(UsbSerialManager.ACTION_USB_PERMISSION_GRANTED);
 //                    context.sendBroadcast(it);
-                    Toast.makeText(context, "USB permission granted", Toast.LENGTH_SHORT).show();
-                } else // User not accepted our USB connection. Send an Intent to the Main Activity
-                {
+                    Toast.makeText(context, "USB permission granted", Toast.LENGTH_SHORT).show()
+                } else { // User not accepted our USB connection. Send an Intent to the Main Activity
 //                    Intent it = new Intent(UsbSerialManager.ACTION_USB_PERMISSION_NOT_GRANTED);
 //                    context.sendBroadcast(it);
-                    Toast.makeText(context, "USB Permission denied", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "USB Permission denied", Toast.LENGTH_SHORT).show()
                 }
-            } else if (intent.getAction().equals(UsbManager.ACTION_USB_DEVICE_ATTACHED)) {
+            } else if (intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
 //                Intent it = new Intent(UsbSerialManager.ACTION_USB_CONNECT);
 //                context.sendBroadcast(it);
-                Toast.makeText(context, "USB connected", Toast.LENGTH_SHORT).show();
-                usbConnectChange(UsbConnectState.CONNECT);
-            } else if (intent.getAction().equals(UsbManager.ACTION_USB_DEVICE_DETACHED)) {
+                Toast.makeText(context, "USB connected", Toast.LENGTH_SHORT).show()
+                usbConnectChange(UsbConnectState.CONNECT)
+            } else if (intent.action == UsbManager.ACTION_USB_DEVICE_DETACHED) {
                 // Usb device was disconnected. send an intent to the Main Activity
 //                Intent it = new Intent(UsbSerialManager.ACTION_USB_DISCONNECTED);
 //                context.sendBroadcast(it);
-                Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show();
-                usbConnectChange(UsbConnectState.DISCONNECTED);
+                Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show()
+                usbConnectChange(UsbConnectState.DISCONNECTED)
             }
         }
-    };
-
-    private void setUsbFilter() {
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(UsbSerialManager.ACTION_USB_PERMISSION_REQUEST);
-        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
-        filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
-        registerReceiver(mUsbHardwareReceiver, filter);
     }
 
+    private fun setUsbFilter() {
+        val filter = IntentFilter()
+        filter.addAction(UsbSerialManager.ACTION_USB_PERMISSION_REQUEST)
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+        registerReceiver(mUsbHardwareReceiver, filter)
+    }
 
-    private TextView display;
-    private TextView portSelect;
-    private String deviceKeyName;
-    private FloatingActionButton fab;
-    private Button requestButton;
+    private lateinit var binding: ActivityMainBinding
 
+    private lateinit var usbSerialManager: UsbSerialManager
 
-    public void usbConnectChange(UsbConnectState state) {
+    private var deviceKeyName: String? = null
+
+    fun usbConnectChange(state: UsbConnectState) {
         if (state == UsbConnectState.DISCONNECTED) {
-            if (requestButton != null) requestButton.setVisibility(View.INVISIBLE);
-            if (fab != null) fab.hide();
+            binding.requestButton.visibility = View.INVISIBLE
+            binding.fab.hide()
         } else if (state == UsbConnectState.CONNECT) {
-            if (requestButton != null) requestButton.setVisibility(View.VISIBLE);
-
+            binding.requestButton.visibility = View.VISIBLE
         }
-
     }
 
-
-    public void usbPermissionGranted(String usbKey) {
-        Toast.makeText(this, "UsbPermissionGranted:" + usbKey, Toast.LENGTH_SHORT).show();
-        portSelect.setText(usbKey);
-        deviceKeyName = usbKey;
-        if (fab != null) fab.show();
+    fun usbPermissionGranted(usbKey: String) {
+        Toast.makeText(this, "UsbPermissionGranted:$usbKey", Toast.LENGTH_SHORT).show()
+        binding.portSelect.text = usbKey
+        deviceKeyName = usbKey
+        binding.fab.show()
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = DataBindingUtil.setContentView(this@MainActivity, R.layout.activity_main)
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        usbSerialManager = new UsbSerialManager(this);
-        setUsbFilter();
-        setContentView(R.layout.activity_main);
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        portSelect = (TextView) findViewById(R.id.textViewTitle);
-        display = (TextView) findViewById(R.id.textView1);
-        fab = findViewById(R.id.fab);
-        requestButton = (Button) findViewById(R.id.buttonRequest);
-        requestButton.setOnClickListener(view -> {
-            Map.Entry<String, UsbDevice> entry = usbSerialManager.getUsbDeviceList().entrySet().iterator().next();
-            String keySelect = entry.getKey();
-            boolean hasPem = checkDevicePermission(keySelect);
+        usbSerialManager = UsbSerialManager(this@MainActivity)
+        setUsbFilter()
+
+        setSupportActionBar(binding.toolbar)
+
+        binding.requestButton.setOnClickListener {
+            val (keySelect) = usbSerialManager.usbDeviceList.entries.iterator().next()
+            val hasPem = checkDevicePermission(keySelect)
             if (hasPem) {
-                portSelect.setText(keySelect);
-                deviceKeyName = keySelect;
-                if (fab != null) fab.show();
+                binding.portSelect.text = keySelect
+                deviceKeyName = keySelect
+                binding.fab.show()
             } else {
-                requestDevicePermission(keySelect);
+                requestDevicePermission(keySelect)
             }
-        });
-
-
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-//                    uploadHex();
-                new Thread(new UploadRunnable()).start();
-            }
-        });
+        }
+        binding.fab.setOnClickListener {
+            Thread(UploadRunnable()).start()
+        }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        unregisterReceiver(mUsbHardwareReceiver);
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(mUsbHardwareReceiver)
     }
 
-    private void setFilters() {
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(UsbSerialManager.ACTION_USB_PERMISSION_GRANTED);
-        filter.addAction(UsbSerialManager.ACTION_NO_USB);
-        filter.addAction(UsbSerialManager.ACTION_USB_DISCONNECTED);
-        filter.addAction(UsbSerialManager.ACTION_USB_CONNECT);
-        filter.addAction(UsbSerialManager.ACTION_USB_NOT_SUPPORTED);
-        filter.addAction(UsbSerialManager.ACTION_USB_PERMISSION_NOT_GRANTED);
-        registerReceiver(mUsbNotifyReceiver, filter);
+    private fun setFilters() {
+        val filter = IntentFilter()
+        filter.addAction(UsbSerialManager.ACTION_USB_PERMISSION_GRANTED)
+        filter.addAction(UsbSerialManager.ACTION_NO_USB)
+        filter.addAction(UsbSerialManager.ACTION_USB_DISCONNECTED)
+        filter.addAction(UsbSerialManager.ACTION_USB_CONNECT)
+        filter.addAction(UsbSerialManager.ACTION_USB_NOT_SUPPORTED)
+        filter.addAction(UsbSerialManager.ACTION_USB_PERMISSION_NOT_GRANTED)
+        registerReceiver(mUsbNotifyReceiver, filter)
     }
 
-    public void requestDevicePermission(String key) {
-        usbSerialManager.getDevicePermission(key);
-
+    private fun requestDevicePermission(key: String?) {
+        usbSerialManager.getDevicePermission(key!!)
     }
 
-    public boolean checkDevicePermission(String key) {
-        return usbSerialManager.checkDevicePermission(key);
+    private fun checkDevicePermission(key: String?): Boolean {
+        return usbSerialManager.checkDevicePermission(key!!)
     }
 
-    public UsbSerialDevice getUsbSerialDevice(String key) {
-        return usbSerialManager.tryGetDevice(key);
+    private fun getUsbSerialDevice(key: String?): UsbSerialDevice? {
+        return usbSerialManager.tryGetDevice(key!!)
     }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-        setFilters();
+    override fun onResume() {
+        super.onResume()
+        setFilters()
     }
 
-    @Override
-    public void onPause() {
-        super.onPause();
-        unregisterReceiver(mUsbNotifyReceiver);
+    override fun onPause() {
+        super.onPause()
+        unregisterReceiver(mUsbNotifyReceiver)
     }
 
-    public void uploadHex() {
-
-        Boards board = Boards.ARDUINO_UNO;
-
-        Arduino arduinoBoard = new Arduino(board.name, board.chipType, board.uploadBaudrate, board.uploadProtocol);
-
-        Protocol protocol = Protocol.valueOf(arduinoBoard.getProtocol().name());
-        McuIdentifier mcu = McuIdentifier.valueOf(arduinoBoard.getMcu().name());
-        String preOpenRst = arduinoBoard.getPreOpenResetBehavior();
-        String preOpenStr = preOpenRst;
-        if (preOpenRst == null) preOpenStr = "";
-        else if (preOpenStr.equalsIgnoreCase("none")) preOpenStr = "";
-
-        String postOpenRst = arduinoBoard.getPostOpenResetBehavior();
-        String postOpenStr = postOpenRst;
-        if (postOpenRst == null) postOpenStr = "";
-        else if (postOpenStr.equalsIgnoreCase("none")) postOpenStr = "";
-
-        String closeRst = arduinoBoard.getCloseResetBehavior();
-        String closeStr = closeRst;
-        if (closeRst == null) closeStr = "";
-        else if (closeStr.equalsIgnoreCase("none")) closeStr = "";
-
-        Arduino customArduino = new Arduino("Custom", mcu, arduinoBoard.getBaudRate(), protocol);
-        if (!TextUtils.isEmpty(preOpenStr))
-            customArduino.setPreOpenResetBehavior(preOpenStr);
-        if (!TextUtils.isEmpty(postOpenStr))
-            customArduino.setPostOpenResetBehavior(postOpenStr);
-        if (!TextUtils.isEmpty(closeStr))
-            customArduino.setCloseResetBehavior(closeStr);
-        if (protocol == Protocol.Avr109) customArduino.setSleepAfterOpen(0);
-        else customArduino.setSleepAfterOpen(250);
-
-        IArduinoUploaderLogger logger = new IArduinoUploaderLogger() {
-            @Override
-            public void Error(String message, Exception exception) {
-                Log.e(TAG, "Error:" + message);
-                logUI("Error:" + message);
+    fun uploadHex() {
+        val board = Boards.ARDUINO_UNO
+        val arduinoBoard = Arduino(board.boardName, board.chipType, board.uploadBaudRate, board.uploadProtocol)
+        val protocol = Protocol.valueOf(arduinoBoard.protocol.name)
+        val mcu = McuIdentifier.valueOf(arduinoBoard.mcu.name)
+        val preOpenRst = arduinoBoard.preOpenResetBehavior
+        var preOpenStr = preOpenRst
+        if (preOpenRst == null)
+            preOpenStr = ""
+        else if (preOpenStr.equals("none", ignoreCase = true))
+            preOpenStr = ""
+        val postOpenRst = arduinoBoard.postOpenResetBehavior
+        var postOpenStr = postOpenRst
+        if (postOpenRst == null)
+            postOpenStr = ""
+        else if (postOpenStr.equals("none", ignoreCase = true))
+            postOpenStr = ""
+        val closeRst = arduinoBoard.closeResetBehavior
+        var closeStr = closeRst
+        if (closeRst == null)
+            closeStr = ""
+        else if (closeStr.equals("none", ignoreCase = true))
+            closeStr = ""
+        val customArduino = Arduino("Custom", mcu, arduinoBoard.baudRate, protocol)
+        if (!TextUtils.isEmpty(preOpenStr)) customArduino.preOpenResetBehavior = preOpenStr
+        if (!TextUtils.isEmpty(postOpenStr)) customArduino.postOpenResetBehavior = postOpenStr
+        if (!TextUtils.isEmpty(closeStr)) customArduino.closeResetBehavior = closeStr
+        if (protocol == Protocol.Avr109) customArduino.sleepAfterOpen = 0 else customArduino.sleepAfterOpen = 250
+        val logger: IArduinoUploaderLogger = object : IArduinoUploaderLogger {
+            override fun Error(message: String, exception: Exception) {
+                Log.e(TAG, "Error:$message")
+                logUI("Error:$message")
             }
 
-            @Override
-            public void Warn(String message) {
-                Log.w(TAG, "Warn:" + message);
-                logUI("Warn:" + message);
+            override fun Warn(message: String) {
+                Log.w(TAG, "Warn:$message")
+                logUI("Warn:$message")
             }
 
-            @Override
-            public void Info(String message) {
-                Log.i(TAG, "Info:" + message);
-                logUI("Info:" + message);
+            override fun Info(message: String) {
+                Log.i(TAG, "Info:$message")
+                logUI("Info:$message")
             }
 
-            @Override
-            public void Debug(String message) {
-                Log.d(TAG, "Debug:" + message);
-                logUI("Debug:" + message);
+            override fun Debug(message: String) {
+                Log.d(TAG, "Debug:$message")
+                logUI("Debug:$message")
             }
 
-            @Override
-            public void Trace(String message) {
-                Log.d(TAG, "Trace:" + message);
-                logUI("Trace:" + message);
+            override fun Trace(message: String) {
+                Log.d(TAG, "Trace:$message")
+                logUI("Trace:$message")
             }
-        };
-
-        IProgress progress = new IProgress<Double>() {
-            @Override
-            public void Report(Double value) {
-                String result = String.format("Upload progress: %1$,3.2f%%", value * 100);
-                Log.d(TAG, result);
-                logUI("Procees:" + result);
-
-            }
-        };
-
+        }
+        val progress = IProgress<Double?> { value ->
+            val result = String.format("Upload progress: %1$,3.2f%%", value * 100)
+            Log.d(TAG, result)
+            logUI("Procees:$result")
+        }
         try {
-            final InputStream file = getAssets().open("Blink.uno.hex");
-            Reader reader = new InputStreamReader(file);
-            Collection<String> hexFileContents = new LineReader(reader).readLines();
-            ArduinoSketchUploader<SerialPortStreamImpl> uploader = new ArduinoSketchUploader<SerialPortStreamImpl>(this, SerialPortStreamImpl.class, null, logger, progress);
-//            ArduinoSketchUploader<SerialPortStreamImpl> uploader = new ArduinoSketchUploader<SerialPortStreamImpl>(this, null, logger, progress) {
+            val file = assets.open("Blink.uno.hex")
+            val reader: Reader = InputStreamReader(file)
+            val hexFileContents = LineReader(reader).readLines()
+            val uploader =
+                ArduinoSketchUploader(this@MainActivity, SerialPortStreamImpl::class.java, null, logger, progress)
+//            ArduinoSketchUploader<SerialPortStreamImpl> uploader = new ArduinoSketchUploader<SerialPortStreamImpl>(this@MainActivity, null, logger, progress) {
 //                //Ananymous
 //            };
-            uploader.UploadSketch(hexFileContents, customArduino, deviceKeyName);
-        } catch (ArduinoUploaderException ex) {
-            ex.printStackTrace();
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-
-    }
-
-    private void logUI(String text) {
-        runOnUiThread(() -> display.append(text + "\n"));
-    }
-
-    private class UploadRunnable implements Runnable {
-        @Override
-        public void run() {
-            uploadHex();
+            uploader.UploadSketch(hexFileContents, customArduino, deviceKeyName)
+        } catch (ex: ArduinoUploaderException) {
+            ex.printStackTrace()
+        } catch (ex: Exception) {
+            ex.printStackTrace()
         }
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
+    private fun logUI(text: String) {
+        runOnUiThread { binding.display.append("$text\n") }
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+    private inner class UploadRunnable : Runnable {
+        override fun run() {
+            uploadHex()
         }
-        return super.onOptionsItemSelected(item);
     }
 
-
+    companion object {
+        private val TAG = MainActivity::class.java.simpleName
+    }
 }

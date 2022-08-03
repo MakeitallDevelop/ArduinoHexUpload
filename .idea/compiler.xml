@@ -4,6 +4,7 @@
     <bytecodeTargetLevel target="1.8">
       <module name="ArduinoHexUpload.androidarduinosketchuploader" target="11" />
       <module name="ArduinoHexUpload.app" target="11" />
+      <module name="ArduinoHexUpload.arduino-hex-upload" target="11" />
     </bytecodeTargetLevel>
   </component>
 </project>

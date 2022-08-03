@@ -13,6 +13,7 @@
             <option value="$PROJECT_DIR$/IntelHexFormatReader" />
             <option value="$PROJECT_DIR$/androidarduinosketchuploader" />
             <option value="$PROJECT_DIR$/app" />
+            <option value="$PROJECT_DIR$/arduino-hex-upload" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />
