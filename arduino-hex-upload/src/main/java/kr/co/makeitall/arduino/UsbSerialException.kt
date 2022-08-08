@@ -12,11 +12,9 @@ class UsbSerialException : RuntimeException {
     }
 
     companion object {
-        const val TYPE_NOT_CONNECTED = 0
-        const val TYPE_NEEDS_PERMISSION = 1
-        const val TYPE_COMMUNICATION_ERROR = 2
-        const val TYPE_READ_TIMEOUT_ERROR = 3
-        const val TYPE_WRITE_TIMEOUT_ERROR = 4
-        const val TYPE_UNEXPECTED_RESPONSE = 5
+        const val USB_ERROR_NOT_SUPPORTED = 0
+        const val USB_ERROR_NO_USB = 1
+        const val USB_ERROR_DRIVER_NOT_WORKING = 2
+        const val USB_ERROR_CDC_DRIVER_NOT_WORKING = 3
     }
 }
