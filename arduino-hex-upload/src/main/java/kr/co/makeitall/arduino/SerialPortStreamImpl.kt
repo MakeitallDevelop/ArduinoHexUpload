@@ -1,6 +1,5 @@
 package kr.co.makeitall.arduino
 
-import ArduinoUploader.Help.ISerialPortStream
 import android.content.Context
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
@@ -9,6 +8,7 @@ import android.util.Log
 import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface
 import com.felhr.usbserial.UsbSerialInterface.UsbReadCallback
+import kr.co.makeitall.arduino.ArduinoUploader.Help.ISerialPortStream
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
 

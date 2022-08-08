@@ -1,18 +1,18 @@
 package xyz.vidieukhien.embedded.arduinohexuploadexample
 
-import ArduinoUploader.ArduinoSketchUploader
-import ArduinoUploader.ArduinoUploaderException
-import ArduinoUploader.Config.Arduino
-import ArduinoUploader.Config.McuIdentifier
-import ArduinoUploader.Config.Protocol
-import ArduinoUploader.IArduinoUploaderLogger
-import CSharpStyle.IProgress
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import kr.co.makeitall.arduino.ArduinoUploader.ArduinoSketchUploader
+import kr.co.makeitall.arduino.ArduinoUploader.ArduinoUploaderException
+import kr.co.makeitall.arduino.ArduinoUploader.Config.Arduino
+import kr.co.makeitall.arduino.ArduinoUploader.Config.McuIdentifier
+import kr.co.makeitall.arduino.ArduinoUploader.Config.Protocol
+import kr.co.makeitall.arduino.ArduinoUploader.IArduinoUploaderLogger
 import kr.co.makeitall.arduino.Boards
+import kr.co.makeitall.arduino.CSharpStyle.IProgress
 import kr.co.makeitall.arduino.LineReader
 import kr.co.makeitall.arduino.SerialPortStreamImpl
 import kr.co.makeitall.arduino.UsbSerialManager

@@ -1,7 +1,7 @@
 package kr.co.makeitall.arduino
 
-import ArduinoUploader.Config.McuIdentifier
-import ArduinoUploader.Config.Protocol
+import kr.co.makeitall.arduino.ArduinoUploader.Config.McuIdentifier
+import kr.co.makeitall.arduino.ArduinoUploader.Config.Protocol
 
 enum class Boards(
     val idText: String,

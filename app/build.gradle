@@ -49,7 +49,6 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.coordinatorlayout:coordinatorlayout:1.2.0'
     implementation 'com.github.felHR85:UsbSerial:6.1.0'
-    implementation project(':androidarduinosketchuploader')
     implementation project(':arduino-hex-upload')
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'
