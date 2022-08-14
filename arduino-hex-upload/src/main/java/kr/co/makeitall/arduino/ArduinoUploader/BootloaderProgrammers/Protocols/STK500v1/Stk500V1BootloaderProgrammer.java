@@ -73,7 +73,7 @@ public class Stk500V1BootloaderProgrammer<E extends ISerialPortStream> extends A
 	@Override
 	public void CheckDeviceSignature() {
 		if (getLogger() != null)
-			getLogger().Debug(String.format("Expecting to find '%1$s'...", getMcu().getDeviceSignature()));
+			getLogger().onDebug(String.format("Expecting to find '%1$s'...", getMcu().getDeviceSignature()));
 		SendWithSyncRetry(new ReadSignatureRequest());
 		// ReadSignatureResponse response = this.<ReadSignatureResponse>Receive(4);
 		ReadSignatureResponse getSyncResponse = new ReadSignatureResponse();
@@ -96,10 +96,10 @@ public class Stk500V1BootloaderProgrammer<E extends ISerialPortStream> extends A
 		int majorVersion = GetParameterValue(Constants.ParmStkSwMajor);
 		int minorVersion = GetParameterValue(Constants.ParmStkSwMinor);
 		if (getLogger() != null)
-			getLogger().Info(String.format("Retrieved software version: %1$s.%2$s.", majorVersion, minorVersion));
+			getLogger().onInfo(String.format("Retrieved software version: %1$s.%2$s.", majorVersion, minorVersion));
 
 		if (getLogger() != null)
-			getLogger().Info("Setting device programming parameters...");
+			getLogger().onInfo("Setting device programming parameters...");
 		SendWithSyncRetry(new SetDeviceProgrammingParametersRequest((kr.co.makeitall.arduino.ArduinoUploader.Hardware.Mcu) getMcu()));
 		int nextByte = ReceiveNext();
 
@@ -134,7 +134,7 @@ public class Stk500V1BootloaderProgrammer<E extends ISerialPortStream> extends A
 
 	private int GetParameterValue(byte param) {
 		if (getLogger() != null)
-			getLogger().Trace(String.format("Retrieving parameter '%1$s'...", param));
+			getLogger().onTrace(String.format("Retrieving parameter '%1$s'...", param));
 		SendWithSyncRetry(new GetParameterRequest(param));
 		int nextByte = ReceiveNext();
 		int paramValue = (int) nextByte;
@@ -182,7 +182,7 @@ public class Stk500V1BootloaderProgrammer<E extends ISerialPortStream> extends A
 	@Override
 	public void LoadAddress(IMemory memory, int addr) {
 		if (getLogger() != null)
-			getLogger().Trace(String.format("Sending load address request: %1$s.", addr));
+			getLogger().onTrace(String.format("Sending load address request: %1$s.", addr));
 
 		addr = addr >> 1;
 		SendWithSyncRetry(new LoadAddressRequest(addr));

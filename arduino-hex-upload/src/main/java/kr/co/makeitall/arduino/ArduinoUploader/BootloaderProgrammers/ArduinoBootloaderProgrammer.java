@@ -51,7 +51,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
         String portName = SerialPortConfig.getPortName();
         int baudRate = SerialPortConfig.getBaudRate();
         if (getLogger() != null)
-            getLogger().Info(String.format("Opening serial port %1$s - baudrate %2$s", portName, baudRate));
+            getLogger().onInfo(String.format("Opening serial port %1$s - baudrate %2$s", portName, baudRate));
         // setSerialPort(new SerialPortStream(portName, baudRate));
         setSerialPort(SerialStreamHelper.newInstance(inferedClass, mContext, portName, baudRate));
         getSerialPort().setReadTimeout(SerialPortConfig.getReadTimeOut());
@@ -61,7 +61,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
                 .getPreOpenResetBehavior();
         if (preOpen != null) {
             if (getLogger() != null)
-                getLogger().Info(String.format("Executing Post Open behavior (%1$s)...", preOpen));
+                getLogger().onInfo(String.format("Executing Post Open behavior (%1$s)...", preOpen));
             setSerialPort((E) preOpen.Reset(getSerialPort(), SerialPortConfig));
         }
         try {
@@ -71,13 +71,13 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
                     String.format("Unable to open serial port %1$s - %2$s.", portName, ex.getMessage()));
         }
         if (getLogger() != null)
-            getLogger().Trace(String.format("Opened serial port %1$s with baud rate %2$s!", portName, baudRate));
+            getLogger().onTrace(String.format("Opened serial port %1$s with baud rate %2$s!", portName, baudRate));
 
         IResetBehavior postOpen = SerialPortConfig
                 .getPostOpenResetBehavior();
         if (postOpen != null) {
             if (getLogger() != null)
-                getLogger().Info(String.format("Executing Post Open behavior (%1$s)...", postOpen));
+                getLogger().onInfo(String.format("Executing Post Open behavior (%1$s)...", postOpen));
             setSerialPort((E) postOpen.Reset(getSerialPort(), SerialPortConfig));
         }
 
@@ -87,7 +87,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
         }
 
         if (getLogger() != null)
-            getLogger().Trace(String.format("Sleeping for %1$s ms after open...", sleepAfterOpen));
+            getLogger().onTrace(String.format("Sleeping for %1$s ms after open...", sleepAfterOpen));
         try {
             Thread.sleep(sleepAfterOpen);
         } catch (InterruptedException e) {
@@ -111,11 +111,11 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
                 .getCloseResetAction();
         if (preClose != null) {
             if (getLogger() != null)
-                getLogger().Info("Resetting...");
+                getLogger().onInfo("Resetting...");
             setSerialPort((E) preClose.Reset(getSerialPort(), SerialPortConfig));
         }
         if (getLogger() != null)
-            getLogger().Info("Closing serial port...");
+            getLogger().onInfo("Closing serial port...");
         getSerialPort().setDtrEnable(false);
         getSerialPort().setRtsEnable(false);
 
@@ -131,7 +131,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
         byte[] bytes = request.getBytes();
         int length = bytes.length;
         if (getLogger() != null)
-            getLogger().Trace(String.format("Sending %1$s bytes: %2$s", length, System.getProperty("line.separator"))
+            getLogger().onTrace(String.format("Sending %1$s bytes: %2$s", length, System.getProperty("line.separator"))
                     + String.format("%1$s", BitConverter.toString(bytes)));
         // getSerialPort().Write(bytes, 0, length);//) la offset tu 0
         getSerialPort().writeBytes(bytes, length, 0);
@@ -216,7 +216,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
             if (numRead < 0)
                 throw new TimeoutException();
             if (getLogger() != null)
-                getLogger().Trace(String.format("Receiving byte: %1$s", BitConverter.toString(bytes)));
+                getLogger().onTrace(String.format("Receiving byte: %1$s", BitConverter.toString(bytes)));
             return bytes[0];
         } catch (TimeoutException ex) {
             return -1;
@@ -240,7 +240,7 @@ public abstract class ArduinoBootloaderProgrammer<E extends ISerialPortStream> e
                 retrieved += numRead;
             }
             if (getLogger() != null)
-                getLogger().Trace(String.format("Receiving bytes: %1$s", BitConverter.toString(bytes)));
+                getLogger().onTrace(String.format("Receiving bytes: %1$s", BitConverter.toString(bytes)));
             return bytes;
         } catch (TimeoutException ex) {
             throw new ArduinoUploaderException("Time out read data!");

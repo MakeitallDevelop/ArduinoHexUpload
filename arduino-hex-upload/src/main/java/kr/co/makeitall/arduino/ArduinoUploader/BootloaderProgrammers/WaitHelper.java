@@ -24,7 +24,7 @@ public final class WaitHelper {
             int i = 0;
             while (!workingThread.isInterrupted()) {
                 T item = toConsider.invoke();
-                if (getLogger() != null) getLogger().Info(format.invoke(i, item, interval));
+                if (getLogger() != null) getLogger().onInfo(format.invoke(i, item, interval));
                 if (item != null) return item;
                 i++;
                 Thread.sleep(interval);

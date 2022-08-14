@@ -25,10 +25,10 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 		try {
 			String currentPort = getSerialPort().getPortName();
 			if (getLogger() != null)
-				getLogger().Info(String.format("Closing %1$s...", currentPort));
+				getLogger().onInfo(String.format("Closing %1$s...", currentPort));
 			getSerialPort().close();
 			if (getLogger() != null)
-				getLogger().Info(String.format("Waiting for virtual port %1$s to disappear...", currentPort));
+				getLogger().onInfo(String.format("Waiting for virtual port %1$s to disappear...", currentPort));
 			final int timeoutVirtualPointDisappearance = 10000;
 			final int virtualPortDisappearanceInterval = 100;
 			List<String> portNames = new ArrayList<>();
@@ -43,7 +43,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 
 			if (result == null) {
 				if (getLogger() != null)
-					getLogger().Warn(String.format("Virtual COM port %1$s was still present ", currentPort)
+					getLogger().onWarn(String.format("Virtual COM port %1$s was still present ", currentPort)
 							+ "after {timeoutVirtualPointDisappearance} ms!");
 			}
 		} catch (RuntimeException ex) {
@@ -55,7 +55,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 	@Override
 	public void CheckDeviceSignature() {
 		if (getLogger() != null)
-			getLogger().Debug(String.format("Expecting to find '%1$s'...", getMcu().getDeviceSignature()));
+			getLogger().onDebug(String.format("Expecting to find '%1$s'...", getMcu().getDeviceSignature()));
 		Send(new ReadSignatureBytesRequest());
 //        ReadSignatureBytesResponse response = this.<ReadSignatureBytesResponse>Receive(3);
 		ReadSignatureBytesResponse readSignatureBytesResponse = new ReadSignatureBytesResponse();
@@ -91,7 +91,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 			e.printStackTrace();
 		}
 		if (getLogger() != null)
-			getLogger().Info("Software identifier: " + String.format("'%1$s'", identifier));
+			getLogger().onInfo("Software identifier: " + String.format("'%1$s'", identifier));
 
 		Send(new ReturnSoftwareVersionRequest());
 //        ReturnSoftwareVersionResponse softVersionResponse = this.<ReturnSoftwareVersionResponse>Receive(2);
@@ -102,7 +102,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 		}
 
 		if (getLogger() != null)
-			getLogger().Info("Software Version: " + String.format("%1$s.%2$s", softVersionResponse.getMajorVersion(),
+			getLogger().onInfo("Software Version: " + String.format("%1$s.%2$s", softVersionResponse.getMajorVersion(),
 					softVersionResponse.getMinorVersion()));
 
 		Send(new ReturnProgrammerTypeRequest());
@@ -114,7 +114,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 		}
 
 		if (getLogger() != null)
-			getLogger().Info(String.format("Programmer type: %1$s.", progTypeResponse.getProgrammerType()));
+			getLogger().onInfo(String.format("Programmer type: %1$s.", progTypeResponse.getProgrammerType()));
 
 		Send(new CheckBlockSupportRequest());
 //        CheckBlockSupportResponse checkBlockResponse = this.<CheckBlockSupportResponse>Receive(3);
@@ -130,7 +130,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 
 		if (getLogger() != null)
 			getLogger()
-					.Info(String.format("Block support - buffer size %1$s bytes.", checkBlockResponse.getBufferSize()));
+					.onInfo(String.format("Block support - buffer size %1$s bytes.", checkBlockResponse.getBufferSize()));
 
 		Send(new ReturnSupportedDeviceCodesRequest());
 
@@ -150,7 +150,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 		}
 		String supportedDevices = StringHelper.join("-", devicesStr);
 		if (getLogger() != null)
-			getLogger().Info(String.format("Supported devices: %1$s.", supportedDevices));
+			getLogger().onInfo(String.format("Supported devices: %1$s.", supportedDevices));
 
 		byte devCode = getMcu().getDeviceCode();
 		if (!devices.contains(devCode)) {
@@ -159,7 +159,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 		}
 
 		if (getLogger() != null)
-			getLogger().Info(String.format("Selecting device type '%1$s'...", devCode));
+			getLogger().onInfo(String.format("Selecting device type '%1$s'...", devCode));
 		Send(new SelectDeviceTypeRequest(devCode));
 		int response = ReceiveNext();
 		if (response != Constants.CarriageReturn) {
@@ -179,7 +179,7 @@ public class Avr109BootloaderProgrammer<E extends ISerialPortStream> extends Ard
 	@Override
 	public void LoadAddress(IMemory memory, int offset) {
 		if (getLogger() != null)
-			getLogger().Trace(String.format("Sending load address request: %1$s.", offset));
+			getLogger().onTrace(String.format("Sending load address request: %1$s.", offset));
 		Send(new SetAddressRequest(offset / 2));
 		int response = ReceiveNext();
 		if (response != Constants.CarriageReturn) {

@@ -57,9 +57,9 @@ public abstract class BootloaderProgrammer<E extends ISerialPortStream> implemen
 		IMemory flashMem = getMcu().getFlash();
 		int pageSize = flashMem.getPageSize();
 		if (getLogger() != null)
-			getLogger().Info(String.format("Preparing to write %1$s bytes...", sizeToWrite));
+			getLogger().onInfo(String.format("Preparing to write %1$s bytes...", sizeToWrite));
 		if (getLogger() != null)
-			getLogger().Info(String.format("Flash page size: %1$s.", pageSize));
+			getLogger().onInfo(String.format("Flash page size: %1$s.", pageSize));
 
 		int offset;
 		for (offset = 0; offset < sizeToWrite; offset += pageSize) {
@@ -87,16 +87,16 @@ public abstract class BootloaderProgrammer<E extends ISerialPortStream> implemen
 					bytesToCopy[i] = memoryCells[i].getValue();
 				}
 				if (getLogger() != null)
-					getLogger().Trace(String.format("Writing page at offset %1$s.", offset));
+					getLogger().onTrace(String.format("Writing page at offset %1$s.", offset));
 				LoadAddress(flashMem, offset);
 				ExecuteWritePage(flashMem, offset, bytesToCopy);
 			} else {
 				if (getLogger() != null)
-					getLogger().Trace("Skip writing page...");
+					getLogger().onTrace("Skip writing page...");
 			}
 		}
 		if (getLogger() != null)
-			getLogger().Info(String.format("%1$s bytes written to flash memory!", sizeToWrite));
+			getLogger().onInfo(String.format("%1$s bytes written to flash memory!", sizeToWrite));
 	}
 
 	public void VerifyProgram(MemoryBlock memoryBlock) {
@@ -110,15 +110,15 @@ public abstract class BootloaderProgrammer<E extends ISerialPortStream> implemen
 		IMemory flashMem = getMcu().getFlash();
 		int pageSize = flashMem.getPageSize();
 		if (getLogger() != null)
-			getLogger().Info(String.format("Preparing to verify %1$s bytes...", sizeToVerify));
+			getLogger().onInfo(String.format("Preparing to verify %1$s bytes...", sizeToVerify));
 		if (getLogger() != null)
-			getLogger().Info(String.format("Flash page size: %1$s.", pageSize));
+			getLogger().onInfo(String.format("Flash page size: %1$s.", pageSize));
 		int offset;
 		for (offset = 0; offset < sizeToVerify; offset += pageSize) {
 			if (progress != null)
 				progress.Report((double) (sizeToVerify + offset) / (sizeToVerify * 2));
 			if (getLogger() != null)
-				getLogger().Debug(String.format("Executing verification of bytes @ address %1$s (page size %2$s)...",
+				getLogger().onDebug(String.format("Executing verification of bytes @ address %1$s (page size %2$s)...",
 						offset, pageSize));
 
 //          var bytesToVerify = memoryBlock.Cells.Skip(offset).Take(pageSize).Select(x => x.Value).ToArray();
@@ -141,13 +141,13 @@ public abstract class BootloaderProgrammer<E extends ISerialPortStream> implemen
 				continue;
 			}
 			if (getLogger() != null)
-				getLogger().Info(String.format("Expected: %1$s.", BitConverter.toString(bytesToVerify))
+				getLogger().onInfo(String.format("Expected: %1$s.", BitConverter.toString(bytesToVerify))
 						+ String.format("%1$sRead after write: %2$s", System.getProperty("line.separator"),
 								BitConverter.toString(bytesPresent)));
 			throw new ArduinoUploaderException("Difference encountered during verification!");
 		}
 		if (getLogger() != null)
-			getLogger().Info(String.format("%1$s bytes verified!", sizeToVerify));
+			getLogger().onInfo(String.format("%1$s bytes verified!", sizeToVerify));
 	}
 
 }

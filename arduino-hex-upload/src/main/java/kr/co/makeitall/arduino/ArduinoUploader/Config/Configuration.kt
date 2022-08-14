@@ -1,13 +1,20 @@
-package kr.co.makeitall.arduino.ArduinoUploader.Config;
+package kr.co.makeitall.arduino.ArduinoUploader.Config
 
-public class Configuration {
-    private Arduino[] Arduinos;
+data class Configuration(
+    var arduinos: Array<Arduino> = arrayOf()
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
 
-    public final Arduino[] getArduinos() {
-        return Arduinos;
+        other as Configuration
+
+        if (!arduinos.contentEquals(other.arduinos)) return false
+
+        return true
     }
 
-    public final void setArduinos(Arduino[] value) {
-        Arduinos = value;
+    override fun hashCode(): Int {
+        return arduinos.contentHashCode()
     }
 }

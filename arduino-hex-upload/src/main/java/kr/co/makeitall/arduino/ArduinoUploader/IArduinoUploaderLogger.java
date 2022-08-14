@@ -1,13 +1,13 @@
 package kr.co.makeitall.arduino.ArduinoUploader;
 
 public interface IArduinoUploaderLogger {
-    void Error(String message, Exception exception);
+    void onError(String message, Exception exception);
 
-    void Warn(String message);
+    void onWarn(String message);
 
-    void Info(String message);
+    void onInfo(String message);
 
-    void Debug(String message);
+    void onDebug(String message);
 
-    void Trace(String message);
+    void onTrace(String message);
 }

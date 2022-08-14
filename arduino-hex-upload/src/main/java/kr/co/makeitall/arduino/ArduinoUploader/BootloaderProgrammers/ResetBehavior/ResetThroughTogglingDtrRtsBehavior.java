@@ -41,7 +41,7 @@ public class ResetThroughTogglingDtrRtsBehavior implements IResetBehavior {
 	@Override
 	public final ISerialPortStream Reset(ISerialPortStream serialPort, SerialPortConfig config) {
 		if (getLogger() != null)
-			getLogger().Trace("Toggling DTR/RTS...");
+			getLogger().onTrace("Toggling DTR/RTS...");
 		serialPort.setDtrEnable(getInvert());
 		serialPort.setRtsEnable(getInvert());
 		try {

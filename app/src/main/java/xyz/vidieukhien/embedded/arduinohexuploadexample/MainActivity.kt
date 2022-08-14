@@ -8,8 +8,6 @@ import androidx.databinding.DataBindingUtil
 import kr.co.makeitall.arduino.ArduinoUploader.ArduinoSketchUploader
 import kr.co.makeitall.arduino.ArduinoUploader.ArduinoUploaderException
 import kr.co.makeitall.arduino.ArduinoUploader.Config.Arduino
-import kr.co.makeitall.arduino.ArduinoUploader.Config.McuIdentifier
-import kr.co.makeitall.arduino.ArduinoUploader.Config.Protocol
 import kr.co.makeitall.arduino.ArduinoUploader.IArduinoUploaderLogger
 import kr.co.makeitall.arduino.Boards
 import kr.co.makeitall.arduino.CSharpStyle.IProgress
@@ -107,47 +105,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun uploadHex() {
-        val board = Boards.ARDUINO_UNO
-        val arduinoBoard = Arduino(board.boardName, board.chipType, board.uploadBaudRate, board.uploadProtocol)
-        val protocol = Protocol.valueOf(arduinoBoard.protocol.name)
-        val mcu = McuIdentifier.valueOf(arduinoBoard.mcu.name)
+    private fun uploadHex() {
+        val arduinoBoard = Arduino(Boards.ARDUINO_UNO)
 
-        val preOpenRst = arduinoBoard.preOpenResetBehavior?.let {
-            if (it.equals("none", ignoreCase = true)) "" else it
-        } ?: ""
-
-        val postOpenRst = arduinoBoard.postOpenResetBehavior?.let {
-            if (it.equals("none", ignoreCase = true)) "" else it
-        } ?: ""
-
-        val closeRst = arduinoBoard.closeResetBehavior?.let {
-            if (it.equals("none", ignoreCase = true)) "" else it
-        } ?: ""
-
-        val customArduino = Arduino("Custom", mcu, arduinoBoard.baudRate, protocol)
-        if (preOpenRst.isNotEmpty()) customArduino.preOpenResetBehavior = preOpenRst
-        if (postOpenRst.isNotEmpty()) customArduino.postOpenResetBehavior = postOpenRst
-        if (closeRst.isNotEmpty()) customArduino.closeResetBehavior = closeRst
-        customArduino.sleepAfterOpen = if (protocol == Protocol.Avr109) 0 else 250
         val logger: IArduinoUploaderLogger = object : IArduinoUploaderLogger {
-            override fun Error(message: String, exception: Exception) {
+            override fun onError(message: String, exception: Exception) {
                 logUI("Error:$message")
             }
 
-            override fun Warn(message: String) {
+            override fun onWarn(message: String) {
                 logUI("Warn:$message")
             }
 
-            override fun Info(message: String) {
+            override fun onInfo(message: String) {
                 logUI("Info:$message")
             }
 
-            override fun Debug(message: String) {
+            override fun onDebug(message: String) {
                 logUI("Debug:$message")
             }
 
-            override fun Trace(message: String) {
+            override fun onTrace(message: String) {
                 logUI("Trace:$message")
             }
         }
@@ -163,7 +141,7 @@ class MainActivity : AppCompatActivity() {
 //            ArduinoSketchUploader<SerialPortStreamImpl> uploader = new ArduinoSketchUploader<SerialPortStreamImpl>(this@MainActivity, null, logger, progress) {
 //                //Ananymous
 //            };
-            uploader.UploadSketch(hexFileContents, customArduino, deviceKeyName)
+            deviceKeyName?.let { uploader.uploadSketch(hexFileContents, arduinoBoard, it) }
         } catch (ex: ArduinoUploaderException) {
             ex.printStackTrace()
         } catch (ex: Exception) {

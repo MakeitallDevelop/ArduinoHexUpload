@@ -31,7 +31,7 @@ public class ResetThrough1200BpsBehavior<E extends ISerialPortStream> implements
         final int timeoutVirtualPortDiscovery = 10000;
         final int virtualPortDiscoveryInterval = 100;
         if (getLogger() != null)
-            getLogger().Info("Issuing forced 1200bps reset...");
+            getLogger().onInfo("Issuing forced 1200bps reset...");
         String currentPortName = serialPort.getPortName();
         String[] originalPorts = serialPort.getPortNames();
         // Close port ...

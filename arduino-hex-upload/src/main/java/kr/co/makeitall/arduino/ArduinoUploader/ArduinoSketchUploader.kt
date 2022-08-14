@@ -1,516 +1,390 @@
-package kr.co.makeitall.arduino.ArduinoUploader;
+package kr.co.makeitall.arduino.ArduinoUploader
 
-import IntelHexFormatReader.HexFileReader;
-import IntelHexFormatReader.Model.MemoryBlock;
-import IntelHexFormatReader.Utils.FileLineIterable;
-import IntelHexFormatReader.Utils.LineReader;
-import android.content.Context;
-import android.hardware.usb.UsbDevice;
-import android.hardware.usb.UsbManager;
-import csharpstyle.StringHelper;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ArduinoBootloaderProgrammer;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.Protocols.AVR109.Avr109BootloaderProgrammer;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.Protocols.STK500v1.Stk500V1BootloaderProgrammer;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.Protocols.STK500v2.Stk500V2BootloaderProgrammer;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ResetBehavior.IResetBehavior;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ResetBehavior.ResetThrough1200BpsBehavior;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ResetBehavior.ResetThroughTogglingDtrBehavior;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ResetBehavior.ResetThroughTogglingDtrRtsBehavior;
-import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.SerialPortConfig;
-import kr.co.makeitall.arduino.ArduinoUploader.Config.Arduino;
-import kr.co.makeitall.arduino.ArduinoUploader.Config.Configuration;
-import kr.co.makeitall.arduino.ArduinoUploader.Config.McuIdentifier;
-import kr.co.makeitall.arduino.ArduinoUploader.Config.Protocol;
-import kr.co.makeitall.arduino.ArduinoUploader.Hardware.*;
-import kr.co.makeitall.arduino.ArduinoUploader.Help.ISerialPortStream;
-import kr.co.makeitall.arduino.CSharpStyle.IProgress;
+import IntelHexFormatReader.HexFileReader
+import IntelHexFormatReader.Model.MemoryBlock
+import IntelHexFormatReader.Utils.FileLineIterable
+import IntelHexFormatReader.Utils.LineReader
+import android.content.Context
+import android.hardware.usb.UsbManager
+import csharpstyle.StringHelper
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ArduinoBootloaderProgrammer
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.Protocols.AVR109.Avr109BootloaderProgrammer
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.Protocols.STK500v1.Stk500V1BootloaderProgrammer
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.Protocols.STK500v2.Stk500V2BootloaderProgrammer
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ResetBehavior.IResetBehavior
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ResetBehavior.ResetThrough1200BpsBehavior
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ResetBehavior.ResetThroughTogglingDtrBehavior
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.ResetBehavior.ResetThroughTogglingDtrRtsBehavior
+import kr.co.makeitall.arduino.ArduinoUploader.BootloaderProgrammers.SerialPortConfig
+import kr.co.makeitall.arduino.ArduinoUploader.Config.Arduino
+import kr.co.makeitall.arduino.ArduinoUploader.Config.Configuration
+import kr.co.makeitall.arduino.ArduinoUploader.Config.McuIdentifier
+import kr.co.makeitall.arduino.ArduinoUploader.Config.Protocol
+import kr.co.makeitall.arduino.ArduinoUploader.Hardware.*
+import kr.co.makeitall.arduino.ArduinoUploader.Help.ISerialPortStream
+import kr.co.makeitall.arduino.CSharpStyle.IProgress
+import java.io.File
+import java.io.IOException
+import java.io.Reader
+import java.lang.reflect.ParameterizedType
+import java.util.*
 
-import java.io.File;
-import java.io.IOException;
-import java.io.Reader;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.util.*;
+class ArduinoSketchUploader<E : ISerialPortStream?> @JvmOverloads
+constructor(
+    private val context: Context,
+    private var inferredClass: Class<E>? = null,
+    private var options: ArduinoSketchUploaderOptions?,
+    _logger: IArduinoUploaderLogger? = null,
+    private var progress: IProgress<Double>? = null
+) {
 
-public class ArduinoSketchUploader<E extends ISerialPortStream> {
-    private static IArduinoUploaderLogger Logger;
-    private Class<E> inferedClass;
-    private final Context mContext;
-
-    public static IArduinoUploaderLogger getLogger() {
-        return Logger;
+    init {
+        logger = _logger
+        logger?.onInfo("Starting ArduinoSketchUploader...")
+        try {
+            inferredClass = genericClass
+        } catch (e: ClassCastException) {
+            logger?.onError("Mus created as anonymous implementation (new Generic<Integer>() {};)...", e)
+            e.printStackTrace()
+        } catch (e: ClassNotFoundException) {
+            e.printStackTrace()
+        }
     }
 
-    public static void setLogger(IArduinoUploaderLogger value) {
-        Logger = value;
-    }
-
-    private ArduinoSketchUploaderOptions _options;
-    private IProgress<Double> _progress;
-
-    public ArduinoSketchUploader(Context context, ArduinoSketchUploaderOptions options, IArduinoUploaderLogger logger) {
-        this(context, options, logger, null);
-    }
-
-    public ArduinoSketchUploader(Context context, ArduinoSketchUploaderOptions options) {
-        this(context, options, null, null);
-    }
-
-    public ArduinoSketchUploader(Context context, ArduinoSketchUploaderOptions options, IArduinoUploaderLogger logger,
-                                 IProgress<Double> progress) {
-        this.mContext = context;
-        setLogger(logger);
-        if (getLogger() != null)
-            getLogger().Info("Starting ArduinoSketchUploader...");
-        _options = options;
-        _progress = progress;
-        if (inferedClass == null) {
-            try {
-                inferedClass = getGenericClass();
-            } catch (ClassCastException e) {
-                if (getLogger() != null)
-                    getLogger().Error("Mus created as anonymous implementation (new Generic<Integer>() {};)...", e);
-                e.printStackTrace();
-            } catch (ClassNotFoundException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+    @get:Throws(ClassNotFoundException::class)
+    val genericClass: Class<E>?
+        get() {
+            if (inferredClass == null) {
+                val mySuperclass = javaClass.genericSuperclass
+                val tType = (mySuperclass as ParameterizedType).actualTypeArguments[0]
+                val className = tType.toString().split(" ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()[1]
+                inferredClass = Class.forName(className) as Class<E>
             }
+            return inferredClass
         }
-    }
 
-    public ArduinoSketchUploader(Context context, Class<E> clazz, ArduinoSketchUploaderOptions options, IArduinoUploaderLogger logger) {
-        this(context, clazz, options, logger, null);
-    }
-
-    public ArduinoSketchUploader(Context context, Class<E> clazz, ArduinoSketchUploaderOptions options) {
-        this(context, clazz, options, null, null);
-    }
-
-    public ArduinoSketchUploader(Context context, Class<E> clazz, ArduinoSketchUploaderOptions options, IArduinoUploaderLogger logger,
-                                 IProgress<Double> progress) {
-        this.mContext = context;
-        setLogger(logger);
-        if (getLogger() != null)
-            getLogger().Info("Starting ArduinoSketchUploader...");
-        _options = options;
-        _progress = progress;
-        inferedClass = clazz;
-
-    }
-
-    @SuppressWarnings("unchecked")
-    public Class<E> getGenericClass() throws ClassNotFoundException {
-        if (inferedClass == null) {
-            Type mySuperclass = getClass().getGenericSuperclass();
-            Type tType = ((ParameterizedType) mySuperclass).getActualTypeArguments()[0];
-            String className = tType.toString().split(" ")[1];
-            inferedClass = (Class<E>) Class.forName(className);
-        }
-        // this.inferedClass = ((Class<E>) ((ParameterizedType)
-        // getClass().getGenericSuperclass()).getActualTypeArguments()[0]);
-        return inferedClass;
-    }
-
-    public final void UploadSketch() {
-        String hexFileName = _options.getFileName();
-        Iterable<String> hexFileContents = null;
-        if (getLogger() != null)
-            getLogger().Info(String.format("Starting upload process for file '%1$s'.", hexFileName));
+    fun uploadSketch() {
+        val hexFileName = options?.fileName
+        logger?.onInfo("Starting upload process for file '$hexFileName'.")
         try {
-            hexFileContents = new FileLineIterable(hexFileName);
-        } catch (RuntimeException ex) {
-            if (getLogger() != null)
-                getLogger().Error(ex.getMessage(), ex);
-            throw ex;
-        } catch (IOException e) {
-            e.printStackTrace();
+            uploadSketch(FileLineIterable(hexFileName))
+        } catch (e: RuntimeException) {
+            logger?.onError(e.message, e)
+            throw e
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        UploadSketch(hexFileContents);
     }
 
-    public final void UploadSketch(File hexFile) {
-        Iterable<String> hexFileContents = null;
-        if (getLogger() != null)
-            getLogger().Info(String.format("Starting upload process for file '%1$s'.", hexFile.getAbsoluteFile()));
+    fun uploadSketch(hexFile: File) {
+        logger?.onInfo("Starting upload process for file '${hexFile.absoluteFile}'.")
         try {
-            hexFileContents = new FileLineIterable(hexFile);
-        } catch (RuntimeException ex) {
-            if (getLogger() != null)
-                getLogger().Error(ex.getMessage(), ex);
-            throw ex;
-        } catch (IOException e) {
-            e.printStackTrace();
+            uploadSketch(FileLineIterable(hexFile))
+        } catch (e: RuntimeException) {
+            logger?.onError(e.message, e)
+            throw e
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-
-        //Other
-//        FileInputStream file = new FileInputStream(myFile);
-//        Reader reader = new InputStreamReader(file);
-//        Collection<String> lines = new LineReader(reader).readLines();
-//        uploader.UploadSketch(lines);
-
-        UploadSketch(hexFileContents);
     }
 
-    public final void UploadSketch(Reader reader) {
-        Collection<String> hexFileContents = new LineReader(reader).readLines();
-        if (getLogger() != null)
-            getLogger().Info(String.format("Starting upload process for InputStreamReader."));
-        UploadSketch(hexFileContents);
+    fun uploadSketch(reader: Reader) {
+        logger?.onInfo("Starting upload process for InputStreamReader.")
+        try {
+            uploadSketch(LineReader(reader).readLines())
+        } catch (e: RuntimeException) {
+            logger?.onError(e.message, e)
+            throw e
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
-
-    public final void UploadSketch(Iterable<String> hexFileContents) {
-
-        UsbManager usbManager = (UsbManager) mContext.getSystemService(Context.USB_SERVICE);
-        HashMap<String, UsbDevice> usbDevices = usbManager.getDeviceList();
-        List<String> portNames = new ArrayList<>();
-        for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
-            UsbDevice usbDevice = entry.getValue();
-            int deviceVID = usbDevice.getVendorId();
-            int devicePID = usbDevice.getProductId();
-            String deviceName = usbDevice.getDeviceName();
-            String deviceKey = entry.getKey();
-            if (deviceVID != 0x1d6b && (devicePID != 0x0001 && devicePID != 0x0002 && devicePID != 0x0003)) {
+    fun uploadSketch(hexFileContents: Iterable<String>) {
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+        val usbDevices = usbManager.deviceList
+        val portNames: MutableList<String> = ArrayList()
+        for ((deviceKey, usbDevice) in usbDevices) {
+            val deviceVID = usbDevice.vendorId
+            val devicePID = usbDevice.productId
+            val deviceName = usbDevice.deviceName
+            if (deviceVID != 0x1d6b && devicePID != 0x0001 && devicePID != 0x0002 && devicePID != 0x0003) {
                 // There is a device connected to our Android device. Try to open it as a Serial Port.
-                portNames.add(deviceKey);
-                System.out.println("deviceKey:" + deviceKey);
+                portNames.add(deviceKey)
+                println("deviceKey:$deviceKey")
             }
         }
-        String[] allPortNames = portNames.toArray(new String[portNames.size()]);
+        val allPortNames = portNames.toTypedArray()
         try {
-            String serialPortName = _options.getPortName();
-
-            Set<String> temp = new HashSet<String>(Arrays.asList(allPortNames));
-            String[] uq = temp.toArray(new String[temp.size()]);
-            List<String> distinctPorts = Arrays.asList(uq);
+            var serialPortName = options?.portName
+            val temp: Set<String> = HashSet(Arrays.asList(*allPortNames))
+            val uq = temp.toTypedArray()
+            val distinctPorts = listOf(*uq)
             // If we don't specify a COM port, automagically select one if there is only a
             // single match.
-            final String portSingleOrDefault;
-            if (distinctPorts.size() > 0) {
-                portSingleOrDefault = distinctPorts.get(0);
-            } else
-                portSingleOrDefault = null;
-
+            val portSingleOrDefault: String? = if (distinctPorts.isNotEmpty()) distinctPorts[0] else null
             if (StringHelper.isNullOrWhiteSpace(serialPortName) && portSingleOrDefault != null) {
-                if (getLogger() != null)
-                    getLogger().Info(String.format("Port autoselected: %1$s.", serialPortName));
-                serialPortName = distinctPorts.get(0);
+                logger?.onInfo("Port autoselected: $serialPortName.")
+                serialPortName = distinctPorts[0]
+            } else if (allPortNames.isEmpty() || !distinctPorts.contains(serialPortName)) {
+                throw ArduinoUploaderException("Specified COM port name '$serialPortName' is not valid.")
             }
-            // Or else, check that we have an unambiguous match. Throw an exception
-            // otherwise.
-            else if ((allPortNames.length == 0) || !distinctPorts.contains(serialPortName)) {
-                throw new ArduinoUploaderException(
-                        String.format("Specified COM port name '%1$s' is not valid.", serialPortName));
-            }
-            if (getLogger() != null)
-                getLogger().Trace(String.format("Creating serial port '%1$s'...", serialPortName));
-            ArduinoBootloaderProgrammer<E> programmer;
-            IMcu mcu;
-            String model = _options.getArduinoModel().toString();
-            Configuration hardwareConfig = ReadConfiguration();
-            Arduino modelOptions = null;
-            Arduino[] tempOptions = hardwareConfig.getArduinos();
-            for (Arduino arduino : tempOptions) {
-                if (arduino.getModel().equalsIgnoreCase(model)) {
-                    modelOptions = arduino;
-                    break;
+            logger?.onTrace("Creating serial port '$serialPortName'...")
+
+            val model = options?.arduinoModel.toString()
+            val (tempOptions) = readConfiguration()
+            var modelOptions: Arduino? = null
+            for (arduino in tempOptions) {
+                if (arduino.model.equals(model, ignoreCase = true)) {
+                    modelOptions = arduino
+                    break
                 }
             }
-            UploadSketch(hexFileContents, modelOptions, serialPortName);
-        } catch (RuntimeException ex) {
-            if (getLogger() != null)
-                getLogger().Error(ex.getMessage(), ex);
-            throw ex;
+            modelOptions?.let { mo ->
+                serialPortName?.let { sp ->
+                    uploadSketch(hexFileContents, mo, sp)
+                }
+            }
+        } catch (e: RuntimeException) {
+            logger?.onError(e.message, e)
+            throw e
         }
     }
 
-    public final void UploadSketch(Iterable<String> hexFileContents, Arduino modelOptions, String serialPortName) {
-        ArduinoBootloaderProgrammer<E> programmer;
-        IMcu mcu;
+    fun uploadSketch(hexFileContents: Iterable<String>, modelOptions: Arduino, serialPortName: String) {
+        val programmer: ArduinoBootloaderProgrammer<E>
+
         if (modelOptions == null) {
-            throw new ArduinoUploaderException(String.format("Unable to find configuration for '%1$s'!", modelOptions.getModel()));
+            throw ArduinoUploaderException("Unable to find configuration for '${modelOptions.model}'!")
         }
-        switch (modelOptions.getMcu()) {
-            case AtMega1284:
-                mcu = new AtMega1284();
-                break;
-            case AtMega1284P:
-                mcu = new AtMega1284P();
-                break;
-            case AtMega2560:
-                mcu = new AtMega2560();
-                break;
-            case AtMega32U4:
-                mcu = new AtMega32U4();
-                break;
-            case AtMega328P:
-                mcu = new AtMega328P();
-                break;
-            case AtMega168:
-                mcu = new AtMega168();
-                break;
-            default:
-                throw new ArduinoUploaderException(String.format("Unrecognized MCU: '%1$s'!", modelOptions.getMcu()));
+        val mcu: IMcu = when (modelOptions.mcu) {
+            McuIdentifier.AtMega1284 -> AtMega1284()
+            McuIdentifier.AtMega1284P -> AtMega1284P()
+            McuIdentifier.AtMega2560 -> AtMega2560()
+            McuIdentifier.AtMega32U4 -> AtMega32U4()
+            McuIdentifier.AtMega328P -> AtMega328P()
+            McuIdentifier.AtMega168 -> AtMega168()
+            else -> throw ArduinoUploaderException("Unrecognized MCU: '${modelOptions.mcu}'!")
         }
-        IResetBehavior preOpenResetBehavior = ParseResetBehavior(modelOptions.getPreOpenResetBehavior());
-        IResetBehavior postOpenResetBehavior = ParseResetBehavior(modelOptions.getPostOpenResetBehavior());
-        IResetBehavior closeResetBehavior = ParseResetBehavior(modelOptions.getCloseResetBehavior());
+        val preOpenResetBehavior = parseResetBehavior(modelOptions.preOpenResetBehavior)
+        val postOpenResetBehavior = parseResetBehavior(modelOptions.postOpenResetBehavior)
+        val closeResetBehavior = parseResetBehavior(modelOptions.closeResetBehavior)
+        val serialPortConfig = SerialPortConfig(
+            serialPortName,
+            modelOptions.baudRate,
+            preOpenResetBehavior,
+            postOpenResetBehavior,
+            closeResetBehavior,
+            modelOptions.sleepAfterOpen,
+            modelOptions.readTimeout,
+            modelOptions.writeTimeout
+        )
+        programmer = when (modelOptions.protocol) {
+            Protocol.Avr109 -> {
+                logger?.onInfo("Protocol.Avr109")
+                Avr109BootloaderProgrammer(serialPortConfig, mcu)
+            }
 
-        SerialPortConfig serialPortConfig = new SerialPortConfig(serialPortName, modelOptions.getBaudRate(),
-                preOpenResetBehavior, postOpenResetBehavior, closeResetBehavior, modelOptions.getSleepAfterOpen(),
-                modelOptions.getReadTimeout(), modelOptions.getWriteTimeout());
+            Protocol.Stk500v1 -> {
+                logger?.onInfo("Protocol.Stk500v1")
+                Stk500V1BootloaderProgrammer(serialPortConfig, mcu)
+            }
 
-        switch (modelOptions.getProtocol()) {
-            case Avr109:
-                if (getLogger() != null)
-                    getLogger().Info("Protocol.Avr109");
-                programmer = new Avr109BootloaderProgrammer<E>(serialPortConfig, mcu);
-                break;
-            case Stk500v1:
-                if (getLogger() != null)
-                    getLogger().Info("Protocol.Stk500v1");
-                programmer = new Stk500V1BootloaderProgrammer<E>(serialPortConfig, mcu);
-                break;
-            case Stk500v2:
-                if (getLogger() != null)
-                    getLogger().Info("Protocol.Stk500v2");
-                programmer = new Stk500V2BootloaderProgrammer<E>(serialPortConfig, mcu);
-                break;
-            default:
-                throw new ArduinoUploaderException(
-                        String.format("Unrecognized protocol: '%1$s'!", modelOptions.getProtocol()));
+            Protocol.Stk500v2 -> {
+                logger?.onInfo("Protocol.Stk500v2")
+                Stk500V2BootloaderProgrammer(serialPortConfig, mcu)
+            }
         }
-
         try {
-            if (getLogger() != null)
-                getLogger().Info("Establishing memory block contents...");
-            MemoryBlock memoryBlockContents = ReadHexFile(hexFileContents, mcu.getFlash().getSize());
-            programmer.setClazz(inferedClass);
-            programmer.setContext(mContext);
-
-            programmer.Open();
-
-            if (getLogger() != null)
-                getLogger().Info("Establishing sync...");
-            programmer.EstablishSync();
-            if (getLogger() != null)
-                getLogger().Info("Sync established.");
-
-            if (getLogger() != null)
-                getLogger().Info("Checking device signature...");
-            programmer.CheckDeviceSignature();
-            if (getLogger() != null)
-                getLogger().Info("Device signature checked.");
-
-            if (getLogger() != null)
-                getLogger().Info("Initializing device...");
-            programmer.InitializeDevice();
-            if (getLogger() != null)
-                getLogger().Info("Device initialized.");
-
-            if (getLogger() != null)
-                getLogger().Info("Enabling programming mode on the device...");
-            programmer.EnableProgrammingMode();
-            if (getLogger() != null)
-                getLogger().Info("Programming mode enabled.");
-
-            if (getLogger() != null)
-                getLogger().Info("Programming device...");
-            programmer.ProgramDevice(memoryBlockContents, _progress);
-            if (getLogger() != null)
-                getLogger().Info("Device programmed.");
-
-            if (getLogger() != null)
-                getLogger().Info("Verifying program...");
-            programmer.VerifyProgram(memoryBlockContents, _progress);
-            if (getLogger() != null)
-                getLogger().Info("Verified program!");
-
-            if (getLogger() != null)
-                getLogger().Info("Leaving programming mode...");
-            programmer.LeaveProgrammingMode();
-            if (getLogger() != null)
-                getLogger().Info("Left programming mode!");
+            logger?.onInfo("Establishing memory block contents...")
+            val memoryBlockContents = readHexFile(hexFileContents, mcu.flash.size)
+            programmer.setClazz(inferredClass)
+            programmer.setContext(context)
+            programmer.Open()
+            logger?.onInfo("Establishing sync...")
+            programmer.EstablishSync()
+            logger?.onInfo("Sync established.")
+            logger?.onInfo("Checking device signature...")
+            programmer.CheckDeviceSignature()
+            logger?.onInfo("Device signature checked.")
+            logger?.onInfo("Initializing device...")
+            programmer.InitializeDevice()
+            logger?.onInfo("Device initialized.")
+            logger?.onInfo("Enabling programming mode on the device...")
+            programmer.EnableProgrammingMode()
+            logger?.onInfo("Programming mode enabled.")
+            logger?.onInfo("Programming device...")
+            programmer.ProgramDevice(memoryBlockContents, progress)
+            logger?.onInfo("Device programmed.")
+            logger?.onInfo("Verifying program...")
+            programmer.VerifyProgram(memoryBlockContents, progress)
+            logger?.onInfo("Verified program!")
+            logger?.onInfo("Leaving programming mode...")
+            programmer.LeaveProgrammingMode()
+            logger?.onInfo("Left programming mode!")
         } finally {
-            programmer.Close();
+            programmer.Close()
         }
-        if (getLogger() != null)
-            getLogger().Info("All done, shutting down!");
-
+        logger?.onInfo("All done, shutting down!")
     }
 
-    public final void UploadSketch(String hexFileName, Arduino modelOptions, String serialPortName) {
-        Iterable<String> hexFileContents = null;
-        if (getLogger() != null)
-            getLogger().Info(String.format("Starting upload process for file '%1$s'.", hexFileName));
+    fun uploadSketch(hexFileName: String, modelOptions: Arduino, serialPortName: String) {
+        logger?.onInfo("Starting upload process for file '$hexFileName'.")
         try {
-            hexFileContents = new FileLineIterable(hexFileName);
-        } catch (RuntimeException ex) {
-            if (getLogger() != null)
-                getLogger().Error(ex.getMessage(), ex);
-            throw ex;
-        } catch (IOException e) {
-            e.printStackTrace();
+            uploadSketch(FileLineIterable(hexFileName), modelOptions, serialPortName)
+        } catch (ex: RuntimeException) {
+            logger?.onError(ex.message, ex)
+            throw ex
+        } catch (e: IOException) {
+            e.printStackTrace()
         }
-        UploadSketch(hexFileContents, modelOptions, serialPortName);
     }
 
-    private static MemoryBlock ReadHexFile(Iterable<String> hexFileContents, int memorySize) {
-        try {
-            HexFileReader reader = new HexFileReader(hexFileContents, memorySize);
-            return reader.Parse();
-        } catch (RuntimeException ex) {
-            if (getLogger() != null)
-                getLogger().Error(ex.getMessage(), ex);
-            throw ex;
-        } catch (IOException e) {
-            e.printStackTrace();
-
-        }
-        return null;
-    }
-
-    private static Configuration ReadConfiguration() {// Todo add new arduino dynamic
-        Configuration hardwareConfig = new Configuration();
-        List<Arduino> listArduino = new ArrayList<>();
-
-        Arduino Leonardo = new Arduino(ArduinoModel.Leonardo.toString(), McuIdentifier.AtMega32U4, 57600,
-                Protocol.Avr109);
-        Leonardo.setPreOpenResetBehavior("1200bps");
-        Leonardo.setSleepAfterOpen(0);
-        Leonardo.setReadTimeout(1000);
-        Leonardo.setWriteTimeout(1000);
-        listArduino.add(Leonardo);
-
-        Arduino Mega1284 = new Arduino(ArduinoModel.Mega1284.toString(), McuIdentifier.AtMega1284, 115200,
-                Protocol.Stk500v1);
-        Mega1284.setPreOpenResetBehavior("DTR;true");
-        Mega1284.setCloseResetBehavior("DTR-RTS;250;50");
-        Mega1284.setSleepAfterOpen(250);
-        Mega1284.setReadTimeout(1000);
-        Mega1284.setWriteTimeout(1000);
-        listArduino.add(Mega1284);
-
-        Arduino Mega2560 = new Arduino(ArduinoModel.Mega2560.toString(), McuIdentifier.AtMega2560, 115200,
-                Protocol.Stk500v2);
-        Mega2560.setPostOpenResetBehavior("DTR-RTS;50;250;true");
-        Mega2560.setCloseResetBehavior("DTR-RTS;250;50;true");
-        Mega2560.setSleepAfterOpen(250);
-        Mega2560.setReadTimeout(1000);
-        Mega2560.setWriteTimeout(1000);
-        listArduino.add(Mega2560);
-
-        Arduino Micro = new Arduino(ArduinoModel.Micro.toString(), McuIdentifier.AtMega32U4, 57600, Protocol.Avr109);
-        Micro.setPreOpenResetBehavior("1200bps");
-        Micro.setSleepAfterOpen(0);
-        Micro.setReadTimeout(1000);
-        Micro.setWriteTimeout(1000);
-        listArduino.add(Micro);
-
-        Arduino NanoR2 = new Arduino(ArduinoModel.NanoR2.toString(), McuIdentifier.AtMega168, 19200, Protocol.Stk500v1);
-        NanoR2.setPreOpenResetBehavior("DTR;true");
-        NanoR2.setCloseResetBehavior("DTR-RTS;250;50");
-        NanoR2.setSleepAfterOpen(250);
-        NanoR2.setReadTimeout(1000);
-        NanoR2.setWriteTimeout(1000);
-        listArduino.add(NanoR2);
-
-        Arduino NanoR3 = new Arduino(ArduinoModel.NanoR3.toString(), McuIdentifier.AtMega328P, 57600,
-                Protocol.Stk500v1);
-        NanoR3.setPreOpenResetBehavior("DTR;true");
-        NanoR3.setCloseResetBehavior("DTR-RTS;250;50");
-        NanoR3.setSleepAfterOpen(250);
-        NanoR3.setReadTimeout(1000);
-        NanoR3.setWriteTimeout(1000);
-        listArduino.add(NanoR3);
-
-        Arduino UnoR3 = new Arduino(ArduinoModel.UnoR3.toString(), McuIdentifier.AtMega328P, 115200, Protocol.Stk500v1);
-        UnoR3.setPreOpenResetBehavior("DTR;true");
-        UnoR3.setCloseResetBehavior("DTR-RTS;50;250;false");
-        UnoR3.setSleepAfterOpen(250);
-        UnoR3.setReadTimeout(1000);
-        UnoR3.setWriteTimeout(1000);
-        listArduino.add(UnoR3);
-        hardwareConfig.setArduinos(listArduino.toArray(new Arduino[listArduino.size()]));
-        return hardwareConfig;
-    }
-
-    private IResetBehavior ParseResetBehavior(String resetBehavior) {
+    private fun parseResetBehavior(resetBehavior: String?): IResetBehavior? {
         if (resetBehavior == null) {
-            return null;
+            return null
         }
-        if (resetBehavior.trim().equalsIgnoreCase("1200bps")) {
-            return new ResetThrough1200BpsBehavior<E>(inferedClass, mContext);
+        if (resetBehavior.trim { it <= ' ' }.equals("1200bps", ignoreCase = true)) {
+            return ResetThrough1200BpsBehavior(inferredClass, context)
         }
-
-        String[] parts = resetBehavior.split(";", -1);
-        int numberOfParts = parts.length;
-        if (numberOfParts == 2 && parts[0].trim().equalsIgnoreCase("DTR")) {
-            boolean flag = parts[1].trim().equalsIgnoreCase("true");
-            return new ResetThroughTogglingDtrBehavior(flag);
+        val parts = resetBehavior.split(";".toRegex()).toTypedArray()
+        val numberOfParts = parts.size
+        if (numberOfParts == 2 && parts[0].trim { it <= ' ' }.equals("DTR", ignoreCase = true)) {
+            val flag = parts[1].trim { it <= ' ' }.equals("true", ignoreCase = true)
+            return ResetThroughTogglingDtrBehavior(flag)
         }
-
         if (numberOfParts < 3 || numberOfParts > 4) {
-            throw new ArduinoUploaderException(
-                    String.format("Unexpected format (%1$s parts to '%2$s')!", numberOfParts, resetBehavior));
+            throw ArduinoUploaderException("Unexpected format ($numberOfParts parts to '$resetBehavior')!")
         }
 
         // Only DTR-RTS supported at this point...
-        String type = parts[0];
-        if (!type.equalsIgnoreCase("DTR-RTS")) {
-            throw new ArduinoUploaderException(
-                    String.format("Unrecognized close reset behavior: '%1$s'!", resetBehavior));
+        val type = parts[0]
+        if (!type.equals("DTR-RTS", ignoreCase = true)) {
+            throw ArduinoUploaderException("Unrecognized close reset behavior: '$resetBehavior'!")
         }
 
-        int wait1, wait2;
-        try {
-            wait1 = Integer.parseInt(parts[1]);
-        } catch (RuntimeException e) {
-            throw new ArduinoUploaderException(String.format("Unrecognized Wait (1) in DTR-RTS: '%1$s'!", parts[1]));
-        }
-
-        try {
-            wait2 = Integer.parseInt(parts[2]);
-        } catch (RuntimeException e2) {
-            throw new ArduinoUploaderException(String.format("Unrecognized Wait (2) in DTR-RTS: '%1$s'!", parts[2]));
-        }
-
-        boolean inverted = numberOfParts == 4 && parts[3].equalsIgnoreCase("true");
-        return new ResetThroughTogglingDtrRtsBehavior(wait1, wait2, inverted);
+        val wait1: Int =
+            try {
+                parts[1].toInt()
+            } catch (e: RuntimeException) {
+                throw ArduinoUploaderException("Unrecognized Wait (1) in DTR-RTS: '${parts[1]}'!")
+            }
+        val wait2: Int =
+            try {
+                parts[2].toInt()
+            } catch (e2: RuntimeException) {
+                throw ArduinoUploaderException("Unrecognized Wait (2) in DTR-RTS: '${parts[2]}'!")
+            }
+        val inverted = numberOfParts == 4 && parts[3].equals("true", ignoreCase = true)
+        return ResetThroughTogglingDtrRtsBehavior(wait1, wait2, inverted)
     }
 
-    private static IResetBehavior ParseCloseResetBehavior(String closeResetBehavior) {
-        if (closeResetBehavior == null) {
-            return null;
-        }
-        String[] parts = closeResetBehavior.split(";", -1);
-        int numberOfParts = parts.length;
-        if (numberOfParts < 3 || numberOfParts > 4) {
-            throw new ArduinoUploaderException(
-                    String.format("Unexpected format (%1$s parts to '%2$s')!", numberOfParts, closeResetBehavior));
-        }
-        // Only DTR-RTS supported at this point...
-        String type = parts[0];
-        if (!type.equalsIgnoreCase("DTR-RTS")) {
-            throw new ArduinoUploaderException(
-                    String.format("Unrecognized close reset behavior: '%1$s'!", closeResetBehavior));
+    companion object {
+        @JvmStatic
+        var logger: IArduinoUploaderLogger? = null
+
+
+        private fun readHexFile(hexFileContents: Iterable<String>, memorySize: Int): MemoryBlock? {
+            try {
+                val reader = HexFileReader(hexFileContents, memorySize)
+                return reader.Parse()
+            } catch (e: RuntimeException) {
+                logger?.onError(e.message, e)
+                throw e
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
+            return null
         }
 
-        int wait1, wait2;
-        try {
-            wait1 = Integer.parseInt(parts[1]);
-        } catch (RuntimeException e) {
-            throw new ArduinoUploaderException(String.format("Unrecognized Wait (1) in DTR-RTS: '%1$s'!", parts[1]));
+        private fun readConfiguration(): Configuration {
+            return Configuration(
+                arrayOf(
+                    Arduino(
+                        ArduinoModel.Leonardo.toString(),
+                        McuIdentifier.AtMega32U4,
+                        57600,
+                        Protocol.Avr109,
+                        preOpenResetBehavior = "1200bps"
+                    ),
+                    Arduino(
+                        ArduinoModel.Mega1284.toString(),
+                        McuIdentifier.AtMega1284,
+                        115200,
+                        Protocol.Stk500v1,
+                        preOpenResetBehavior = "DTR;true",
+                        closeResetBehavior = "DTR-RTS;250;50"
+                    ),
+                    Arduino(
+                        ArduinoModel.Mega2560.toString(),
+                        McuIdentifier.AtMega2560,
+                        115200,
+                        Protocol.Stk500v2,
+                        postOpenResetBehavior = "DTR-RTS;50;250;true",
+                        closeResetBehavior = "DTR-RTS;250;50;true"
+                    ),
+                    Arduino(
+                        ArduinoModel.Micro.toString(),
+                        McuIdentifier.AtMega32U4,
+                        57600,
+                        Protocol.Avr109,
+                        preOpenResetBehavior = "1200bps"
+                    ),
+                    Arduino(
+                        ArduinoModel.NanoR2.toString(),
+                        McuIdentifier.AtMega168,
+                        19200,
+                        Protocol.Stk500v1,
+                        preOpenResetBehavior = "DTR;true",
+                        closeResetBehavior = "DTR-RTS;250;50"
+                    ),
+                    Arduino(
+                        ArduinoModel.NanoR3.toString(),
+                        McuIdentifier.AtMega328P,
+                        57600,
+                        Protocol.Stk500v1,
+                        preOpenResetBehavior = "DTR;true",
+                        closeResetBehavior = "DTR-RTS;250;50"
+                    ),
+                    Arduino(
+                        ArduinoModel.UnoR3.toString(),
+                        McuIdentifier.AtMega328P,
+                        115200,
+                        Protocol.Stk500v1,
+                        preOpenResetBehavior = "DTR;true",
+                        closeResetBehavior = "DTR-RTS;50;250;false"
+                    )
+                )
+            )
         }
 
-        try {
-            wait2 = Integer.parseInt(parts[2]);
-        } catch (RuntimeException e2) {
-            throw new ArduinoUploaderException(String.format("Unrecognized Wait (2) in DTR-RTS: '%1$s'!", parts[2]));
-        }
+        private fun parseCloseResetBehavior(closeResetBehavior: String): IResetBehavior {
+            val parts = closeResetBehavior.split(";".toRegex()).toTypedArray()
+            val numberOfParts = parts.size
+            if (numberOfParts < 3 || numberOfParts > 4) {
+                throw ArduinoUploaderException("Unexpected format ($numberOfParts parts to '$closeResetBehavior')!")
+            }
+            // Only DTR-RTS supported at this point...
+            val type = parts[0]
+            if (!type.equals("DTR-RTS", ignoreCase = true)) {
+                throw ArduinoUploaderException("Unrecognized close reset behavior: '$closeResetBehavior'!")
+            }
 
-        boolean inverted = numberOfParts == 4 && parts[3].equalsIgnoreCase("true");
-        return new ResetThroughTogglingDtrRtsBehavior(wait1, wait2, inverted);
+            val wait1: Int =
+                try {
+                    parts[1].toInt()
+                } catch (e: RuntimeException) {
+                    throw ArduinoUploaderException("Unrecognized Wait (1) in DTR-RTS: '${parts[1]}'!")
+                }
+            val wait2: Int =
+                try {
+                    parts[2].toInt()
+                } catch (e: RuntimeException) {
+                    throw ArduinoUploaderException("Unrecognized Wait (2) in DTR-RTS: '${parts[2]}'!")
+                }
+            val inverted = numberOfParts == 4 && parts[3].equals("true", ignoreCase = true)
+            return ResetThroughTogglingDtrRtsBehavior(wait1, wait2, inverted)
+        }
     }
 
 }

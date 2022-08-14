@@ -89,7 +89,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 		}
 		if (retryCounter == maxRetries) {
 			if (getLogger() != null)
-				getLogger().Trace(String.format("No MESSAGE_START found after %1$s bytes!", maxRetries));
+				getLogger().onTrace(String.format("No MESSAGE_START found after %1$s bytes!", maxRetries));
 			return null;
 		}
 		wrappedResponseBytes[0] = Constants.MessageStart;
@@ -97,7 +97,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 		int seqNumber = ReceiveNext();
 		if (seqNumber != LastCommandSequenceNumber) {
 			if (getLogger() != null)
-				getLogger().Warn(CorruptWrapper(String.format("Wrong sequence number: %1$s - expected %2$s!", seqNumber,
+				getLogger().onWarn(CorruptWrapper(String.format("Wrong sequence number: %1$s - expected %2$s!", seqNumber,
 						LastCommandSequenceNumber)));
 			return null;
 		}
@@ -105,14 +105,14 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 		int messageSizeHighByte = ReceiveNext();
 		if (messageSizeHighByte == -1) {
 			if (getLogger() != null)
-				getLogger().Warn(CorruptWrapper("Timeout ocurred!"));
+				getLogger().onWarn(CorruptWrapper("Timeout ocurred!"));
 			return null;
 		}
 		wrappedResponseBytes[2] = (byte) messageSizeHighByte;
 		int messageSizeLowByte = ReceiveNext();
 		if (messageSizeLowByte == -1) {
 			if (getLogger() != null)
-				getLogger().Warn(CorruptWrapper("Timeout ocurred!"));
+				getLogger().onWarn(CorruptWrapper("Timeout ocurred!"));
 			return null;
 		}
 		wrappedResponseBytes[3] = (byte) messageSizeLowByte;
@@ -120,7 +120,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 		int token = ReceiveNext();
 		if (token != Constants.Token) {
 			if (getLogger() != null)
-				getLogger().Warn(CorruptWrapper("Token not received!"));
+				getLogger().onWarn(CorruptWrapper("Token not received!"));
 			return null;
 		}
 		wrappedResponseBytes[4] = (byte) token;
@@ -128,7 +128,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 		byte[] payload = ReceiveNext(messageSize);
 		if (payload == null) {
 			if (getLogger() != null)
-				getLogger().Warn(CorruptWrapper("Inner message not received!"));
+				getLogger().onWarn(CorruptWrapper("Inner message not received!"));
 			return null;
 		}
 
@@ -137,7 +137,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 		int responseCheckSum = ReceiveNext();
 		if (responseCheckSum == -1) {
 			if (getLogger() != null)
-				getLogger().Warn(CorruptWrapper("Checksum not received!"));
+				getLogger().onWarn(CorruptWrapper("Checksum not received!"));
 			return null;
 		}
 		wrappedResponseBytes[5 + messageSize] = (byte) responseCheckSum;
@@ -147,7 +147,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 		}
 		if (responseCheckSum != checksum) {
 			if (getLogger() != null)
-				getLogger().Warn(CorruptWrapper("Checksum incorrect!"));
+				getLogger().onWarn(CorruptWrapper("Checksum incorrect!"));
 			return null;
 		}
 		byte[] message = new byte[messageSize];
@@ -180,7 +180,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 	@Override
 	public void CheckDeviceSignature() {
 		if (getLogger() != null)
-			getLogger().Debug(String.format("Expecting to find '%1$s'...", getMcu().getDeviceSignature()));
+			getLogger().onDebug(String.format("Expecting to find '%1$s'...", getMcu().getDeviceSignature()));
 		if (!_deviceSignature.equals(getMcu().getDeviceSignature())) {
 			throw new ArduinoUploaderException(
 					String.format("Unexpected device signature - found '%1$s'", _deviceSignature)
@@ -196,10 +196,10 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 
 		int vTarget = GetParameterValue(Constants.ParamVTarget);
 		if (getLogger() != null)
-			getLogger().Info(String.format("Retrieved software version: %1$s (hardware) ", hardwareVersion)
+			getLogger().onInfo(String.format("Retrieved software version: %1$s (hardware) ", hardwareVersion)
 					+ String.format("- %1$s.%2$s (software).", softwareMajor, softwareMinor));
 		if (getLogger() != null)
-			getLogger().Info(String.format("Parameter VTarget: %1$s.", vTarget));
+			getLogger().onInfo(String.format("Parameter VTarget: %1$s.", vTarget));
 	}
 
 	@Override
@@ -318,7 +318,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 	@Override
 	public void ExecuteWritePage(IMemory memory, int offset, byte[] bytes) {
 		if (getLogger() != null)
-			getLogger().Trace("Sending execute write page request for offset "
+			getLogger().onTrace("Sending execute write page request for offset "
 					+ String.format("%1$s (%2$s bytes)...", offset, bytes.length));
 		byte writeCmd = _writeCommands.get(memory.getType());
 		Send(new ExecuteProgramPageRequest(writeCmd, memory, bytes));
@@ -351,7 +351,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 	@Override
 	public void LoadAddress(IMemory memory, int offset) {
 		if (getLogger() != null)
-			getLogger().Trace(String.format("Sending load address request: %02X.", offset));
+			getLogger().onTrace(String.format("Sending load address request: %02X.", offset));
 //C# TO JAVA CONVERTER WARNING: The right shift operator was not replaced by Java's logical right shift operator since the left operand was not confirmed to be of an unsigned type, but you should review whether the logical right shift operator (>>>) is more appropriate:
 		offset = offset >> 1;
 		Send(new LoadAddressRequest(memory, offset));
@@ -365,7 +365,7 @@ public class Stk500V2BootloaderProgrammer<E extends ISerialPortStream> extends A
 
 	private int GetParameterValue(byte param) {
 		if (getLogger() != null)
-			getLogger().Trace(String.format("Retrieving parameter '%02X'...", param));
+			getLogger().onTrace(String.format("Retrieving parameter '%02X'...", param));
 		Send(new GetParameterRequest(param));
 //        GetParameterResponse response = this.<GetParameterResponse>Receive();
 		GetParameterResponse getParameterResponse = new GetParameterResponse();
