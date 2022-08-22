@@ -43,13 +43,7 @@ enum class Boards(
     BALANDUINO("bala", McuIdentifier.AtMega1284, Protocol.Stk500v1, 115200, ComProtocols.UART, "Balanduino", "DTR;true", "DTR-RTS;250;50", ""),
     POCKETDUINO("podu", McuIdentifier.AtMega328P, Protocol.Stk500v1, 57600, ComProtocols.UART, "PocketDuino", "DTR;true", "DTR-RTS;250;50", "");
 
-    object ComProtocols {
-        const val UART = 1
-        const val I2C = 2
-        const val SPI = 3
-        const val USYNC_FIFO = 4
-        const val SYNC_FIFO = 5
-
+    companion object {
         @JvmStatic
         fun fromName(boardName: String): Boards =
             when (boardName) {
@@ -78,7 +72,15 @@ enum class Boards(
                 ARDUINO_NG_168.boardName -> ARDUINO_NG_168
                 BALANDUINO.boardName -> BALANDUINO
                 POCKETDUINO.boardName -> POCKETDUINO
-                else -> ARDUINO_UNO
+                else -> throw IllegalStateException("Unknown boardName")
             }
+    }
+
+    object ComProtocols {
+        const val UART = 1
+        const val I2C = 2
+        const val SPI = 3
+        const val USYNC_FIFO = 4
+        const val SYNC_FIFO = 5
     }
 }
