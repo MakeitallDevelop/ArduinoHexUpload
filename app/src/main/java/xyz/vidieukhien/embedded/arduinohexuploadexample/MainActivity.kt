@@ -1,6 +1,7 @@
 package xyz.vidieukhien.embedded.arduinohexuploadexample
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -45,6 +46,10 @@ class MainActivity : AppCompatActivity() {
         binding.portSelect.text = usbKey
         deviceKeyName = usbKey
         binding.fab.show()
+
+        usbSerialManager.addOnUsbReadListener(9600) { data ->
+            Log.i(TAG, "data: $data")
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,16 +101,23 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        usbSerialManager.updateDevice()
         usbSerialManager.usbDevice?.let { device ->
             if (usbSerialManager.hasPermission(device)) {
                 usbPermissionGranted(device.deviceName)
+                Log.d(TAG, "permission")
             } else {
                 usbSerialManager.requestPermission(device)
+                Log.w(TAG, "no permission")
             }
+        } ?: run {
+            Log.w(TAG, "usbDevice null")
         }
     }
 
     private fun uploadHex() {
+        usbSerialManager.removeOnUsbReadListener()
+
         val arduinoBoard = Arduino(Boards.ARDUINO_UNO)
 
         val logger: IArduinoUploaderLogger = object : IArduinoUploaderLogger {
@@ -138,9 +150,6 @@ class MainActivity : AppCompatActivity() {
             val hexFileContents = LineReader(reader).readLines()
             val uploader =
                 ArduinoSketchUploader(this@MainActivity, SerialPortStreamImpl::class.java, null, logger, progress)
-//            ArduinoSketchUploader<SerialPortStreamImpl> uploader = new ArduinoSketchUploader<SerialPortStreamImpl>(this@MainActivity, null, logger, progress) {
-//                //Ananymous
-//            };
             deviceKeyName?.let { uploader.uploadSketch(hexFileContents, arduinoBoard, it) }
         } catch (ex: ArduinoUploaderException) {
             ex.printStackTrace()
@@ -148,6 +157,10 @@ class MainActivity : AppCompatActivity() {
             ex.printStackTrace()
         }
         binding.progressBar.progress = 100
+
+        usbSerialManager.addOnUsbReadListener(9600) { data ->
+            Log.i(TAG, "data: $data")
+        }
     }
 
     private fun logUI(text: String) {

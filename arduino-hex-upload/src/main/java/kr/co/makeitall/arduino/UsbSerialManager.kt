@@ -16,6 +16,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.OnLifecycleEvent
 import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface.*
+import java.nio.charset.StandardCharsets
 
 class UsbSerialManager(private val context: Context, lifecycle: Lifecycle) : LifecycleObserver {
 
@@ -77,6 +78,9 @@ class UsbSerialManager(private val context: Context, lifecycle: Lifecycle) : Lif
         removeOnStateListener()
         removeOnPermissionListener()
         removeOnErrorListener()
+        removeOnUsbReadListener()
+        removeOnUsbCtsListener()
+        removeOnUsbDsrListener()
         unregisterUsbHardwareReceiver()
     }
 
@@ -86,33 +90,20 @@ class UsbSerialManager(private val context: Context, lifecycle: Lifecycle) : Lif
     private var onPermissionListener: OnPermissionListener? = null
     private var onStateListener: OnStateListener? = null
 
-    val usbDevice: UsbDevice?
-        get() {
-            val map = usbManager.deviceList
-            if (map.size <= 0) {
-                return null
-            }
-            val iterator: Iterator<UsbDevice> = map.values.iterator()
-            var device: UsbDevice? = null
-            while (iterator.hasNext()) {
-                device = iterator.next()
-            }
-            return device
-        }
+    var usbDevice: UsbDevice? = null
+    var usbSerialDevice: UsbSerialDevice? = null
 
-    private var usbSerialDevice: UsbSerialDevice? = null
-
-    private val usbReadCallback: UsbReadCallback? = null
+    private var usbReadCallback: UsbReadCallback? = null
 
     /**
      * State changes in the CTS line will be received here
      */
-    private val usbCtsCallback: UsbCTSCallback? = null
+    private var usbCtsCallback: UsbCTSCallback? = null
 
     /**
      * State changes in the DSR line will be received here
      */
-    private val usbDsrCallback: UsbDSRCallback? = null
+    private var usbDsrCallback: UsbDSRCallback? = null
 
     private val usbHardwareReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -120,6 +111,10 @@ class UsbSerialManager(private val context: Context, lifecycle: Lifecycle) : Lif
                 ACTION_USB_PERMISSION_REQUEST -> {
                     val isGranted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
                     intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)?.let { usbDevice ->
+                        if (isGranted) {
+                            this@UsbSerialManager.usbDevice = usbDevice
+                            getUsbSerialDevice()
+                        }
                         onPermissionListener?.onPermission(
                             usbDevice,
                             if (isGranted) USB_PERMISSION_GRANTED
@@ -144,7 +139,15 @@ class UsbSerialManager(private val context: Context, lifecycle: Lifecycle) : Lif
 
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
                     intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)?.let { usbDevice ->
+                        if (this@UsbSerialManager.usbDevice == usbDevice) {
+                            usbSerialDevice?.close()
+                            this@UsbSerialManager.usbDevice = null
+                            usbSerialDevice = null
+                        }
                         onStateListener?.onState(usbDevice, USB_STATE_DISCONNECTED)
+                        removeOnUsbReadListener()
+                        removeOnUsbCtsListener()
+                        removeOnUsbDsrListener()
                     }
                     Log.i(TAG, "usb detached")
                 }
@@ -222,11 +225,71 @@ class UsbSerialManager(private val context: Context, lifecycle: Lifecycle) : Lif
         onStateListener = null
     }
 
-    fun hasPermission(usbDevice: UsbDevice): Boolean {
-        return usbManager.hasPermission(usbDevice)
+    fun addOnUsbReadListener(
+        baudRate: Int = BAUD_RATE,
+        dataBits: Int = DATA_BITS_8,
+        stopBits: Int = STOP_BITS_1,
+        listener: (String?) -> Unit
+    ): UsbSerialManager {
+        usbReadCallback = UsbReadCallback { data ->
+            listener(data?.let { String(it, StandardCharsets.UTF_8) })
+        }
+        usbSerialDevice?.apply {
+            if (open()) {
+                setBaudRate(baudRate)
+                setDataBits(dataBits)
+                setStopBits(stopBits)
+                setParity(PARITY_NONE)
+                setFlowControl(FLOW_CONTROL_OFF)
+                usbReadCallback?.let { read(it) }
+                usbCtsCallback?.let { getCTS(it) }
+                usbDsrCallback?.let { getDSR(it) }
+                usbDevice?.let { onStateListener?.onState(it, USB_STATE_READY) }
+                Log.i(TAG, "tryGetDevice: ACTION_USB_READY ")
+            } else {
+                usbDevice?.let {
+                    onErrorListener?.onError(
+                        it,
+                        UsbSerialException(UsbSerialException.USB_ERROR_NOT_SUPPORTED)
+                    )
+                }
+            }
+        }
+        return this@UsbSerialManager
     }
 
-    fun requestPermission(usbDevice: UsbDevice) {
+    fun removeOnUsbReadListener() {
+        usbSerialDevice?.close()
+        usbReadCallback = null
+    }
+
+    fun addOnUsbCtsListener(listener: (Boolean) -> Unit): UsbSerialManager {
+        usbCtsCallback = UsbCTSCallback {
+            listener(it)
+        }
+        return this@UsbSerialManager
+    }
+
+    fun removeOnUsbCtsListener() {
+        usbCtsCallback = null
+    }
+
+    fun addOnUsbDsrListener(listener: (Boolean) -> Unit): UsbSerialManager {
+        usbDsrCallback = UsbDSRCallback {
+            listener(it)
+        }
+        return this@UsbSerialManager
+    }
+
+    fun removeOnUsbDsrListener() {
+        usbDsrCallback = null
+    }
+
+    fun hasPermission(usbDevice: UsbDevice? = this@UsbSerialManager.usbDevice): Boolean {
+        return usbDevice?.let { usbManager.hasPermission(it) } ?: false
+    }
+
+    fun requestPermission(usbDevice: UsbDevice? = this@UsbSerialManager.usbDevice) {
         if (!usbManager.hasPermission(usbDevice)) {
             usbManager.requestPermission(
                 usbDevice,
@@ -235,55 +298,58 @@ class UsbSerialManager(private val context: Context, lifecycle: Lifecycle) : Lif
         }
     }
 
-    fun isUsbSerialDevice(usbDevice: UsbDevice): Boolean {
-        // no usable interfaces
-        if (usbDevice.interfaceCount <= 0) {
-            return false
-        }
-        val vendorId = usbDevice.vendorId
-        val productId = usbDevice.productId
-        // There is a device connected to our Android device. Try to open it as a Serial Port.
-        return vendorId != 0x1d6b && productId != 0x0001 && productId != 0x0002 && productId != 0x0003
-    }
-
-    fun getUsbSerialDevice(usbDevice: UsbDevice): UsbSerialDevice? {
-        usbManager.openDevice(usbDevice)?.let { connection ->
-            usbSerialDevice = UsbSerialDevice.createUsbSerialDevice(usbDevice, connection)
-            usbSerialDevice?.apply {
-                if (open()) {
-                    setBaudRate(BAUD_RATE)
-                    setDataBits(DATA_BITS_8)
-                    setStopBits(STOP_BITS_1)
-                    setParity(PARITY_NONE)
-                    setFlowControl(FLOW_CONTROL_OFF)
-                    usbReadCallback?.let { read(it) }
-                    usbCtsCallback?.let { getCTS(it) }
-                    usbDsrCallback?.let { getDSR(it) }
-                    onStateListener?.onState(usbDevice, USB_STATE_READY)
-                    Log.i(TAG, "tryGetDevice: ACTION_USB_READY ")
-                    close() //close before work
-                } else {
-                    onErrorListener?.onError(usbDevice, UsbSerialException(UsbSerialException.USB_ERROR_NOT_SUPPORTED))
-                    return null
-                }
-
-                if (!isUsbSerialDevice(usbDevice)) {
-                    onErrorListener?.onError(usbDevice, UsbSerialException(UsbSerialException.USB_ERROR_NOT_SUPPORTED))
-                    return null
-                }
-                Log.i(TAG, "tryGetDevice: Serial device found")
-                if (!usbManager.hasPermission(usbDevice)) {
-                    onPermissionListener?.onPermission(usbDevice, USB_PERMISSION_DENIED)
-                    return null
-                }
-            } ?: run {
-                // No driver for given device, even generic CDC driver could not be loaded
-                Log.e(TAG, "tryGetDevice: ACTION_USB_NOT_SUPPORTED")
-                onErrorListener?.onError(usbDevice, UsbSerialException(UsbSerialException.USB_ERROR_NOT_SUPPORTED))
-                return null
+    fun isUsbSerialDevice(usbDevice: UsbDevice? = this@UsbSerialManager.usbDevice): Boolean =
+        usbDevice?.let {
+            // no usable interfaces
+            if (it.interfaceCount <= 0) {
+                return false
             }
-        } ?: Log.e(TAG, "tryGetDevice: could not open connection")
+            val vendorId = it.vendorId
+            val productId = it.productId
+            // There is a device connected to our Android device. Try to open it as a Serial Port.
+            vendorId != 0x1d6b && productId != 0x0001 && productId != 0x0002 && productId != 0x0003
+        } ?: false
+
+    fun getUsbSerialDevice(usbDevice: UsbDevice? = this@UsbSerialManager.usbDevice): UsbSerialDevice? {
+        usbDevice?.let { device ->
+            usbManager.openDevice(device)?.let { connection ->
+                usbSerialDevice = UsbSerialDevice.createUsbSerialDevice(device, connection)
+                usbSerialDevice?.apply {
+                    if (!isUsbSerialDevice(device)) {
+                        onErrorListener?.onError(device, UsbSerialException(UsbSerialException.USB_ERROR_NOT_SUPPORTED))
+                        return null
+                    }
+                    Log.i(TAG, "tryGetDevice: Serial device found")
+                    if (!usbManager.hasPermission(device)) {
+                        onPermissionListener?.onPermission(device, USB_PERMISSION_DENIED)
+                        return null
+                    }
+                } ?: run {
+                    // No driver for given device, even generic CDC driver could not be loaded
+                    Log.e(TAG, "tryGetDevice: ACTION_USB_NOT_SUPPORTED")
+                    onErrorListener?.onError(device, UsbSerialException(UsbSerialException.USB_ERROR_NOT_SUPPORTED))
+                    return null
+                }
+            } ?: Log.e(TAG, "tryGetDevice: could not open connection")
+        }
 
         return usbSerialDevice
+    }
+
+    fun updateDevice() {
+        val map = usbManager.deviceList
+        if (map.size <= 0) {
+            usbDevice = null
+            Log.i(TAG, "usbDevice null")
+        } else {
+            val iterator: Iterator<UsbDevice> = map.values.iterator()
+            var device: UsbDevice? = null
+            while (iterator.hasNext()) {
+                device = iterator.next()
+            }
+            usbDevice = device
+            Log.i(TAG, "usbDevice valid")
+        }
+        getUsbSerialDevice()
     }
 }
