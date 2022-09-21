@@ -1,3 +1,2 @@
 rootProject.name='ArduinoHexUpload'
-include ':app', ':IntelHexFormatReader'
-include ':arduino-hex-upload'
+include ':app', ':IntelHexFormatReader', ':arduino-hex-upload'
