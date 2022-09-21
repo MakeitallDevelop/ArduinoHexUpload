@@ -6,8 +6,11 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kr.co.makeitall.arduino.ArduinoUploader.ArduinoSketchUploader
-import kr.co.makeitall.arduino.ArduinoUploader.ArduinoUploaderException
 import kr.co.makeitall.arduino.ArduinoUploader.Config.Arduino
 import kr.co.makeitall.arduino.ArduinoUploader.IArduinoUploaderLogger
 import kr.co.makeitall.arduino.Boards
@@ -15,7 +18,6 @@ import kr.co.makeitall.arduino.CSharpStyle.IProgress
 import kr.co.makeitall.arduino.LineReader
 import kr.co.makeitall.arduino.SerialPortStreamImpl
 import kr.co.makeitall.arduino.UsbSerialManager
-import kr.co.makeitall.arduino.UsbSerialManager.UsbState
 import xyz.vidieukhien.embedded.arduinohexuploadexample.databinding.ActivityMainBinding
 import java.io.InputStreamReader
 import java.io.Reader
@@ -32,24 +34,11 @@ class MainActivity : AppCompatActivity() {
 
     private var deviceKeyName: String? = null
 
-    private fun usbConnectChange(@UsbState state: Int) {
-        if (state == UsbSerialManager.USB_STATE_DISCONNECTED) {
-            binding.progressBar.visibility = View.INVISIBLE
-            binding.fab.hide()
-        } else if (state == UsbSerialManager.USB_STATE_CONNECTED) {
-            binding.progressBar.visibility = View.VISIBLE
-        }
-    }
-
     private fun usbPermissionGranted(usbKey: String) {
-        Toast.makeText(this@MainActivity, "UsbPermissionGranted:$usbKey", Toast.LENGTH_SHORT).show()
         binding.portSelect.text = usbKey
         deviceKeyName = usbKey
         binding.fab.show()
-
-        usbSerialManager.addOnUsbReadListener(9600) { data ->
-            Log.i(TAG, "data: $data")
-        }
+        binding.fab2.show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,66 +47,62 @@ class MainActivity : AppCompatActivity() {
 
         usbSerialManager = UsbSerialManager(this@MainActivity, lifecycle)
         usbSerialManager
-            .addOnStateListener { usbDevice, state ->
+            .addOnUsbReadListener() { data ->
+                Log.i(TAG, "data: $data")
+            }
+            .addOnStateListener { state ->
                 when (state) {
                     UsbSerialManager.USB_STATE_READY -> {
-
+                        usbSerialManager.usbDevice?.let { usbPermissionGranted(it.deviceName) }
+                        usbSerialManager.startRead()
+                        Toast.makeText(this@MainActivity, "USB ready", Toast.LENGTH_SHORT).show()
                     }
 
                     UsbSerialManager.USB_STATE_CONNECTED -> {
+                        binding.progressBar.visibility = View.VISIBLE
                         Toast.makeText(this@MainActivity, "USB connected", Toast.LENGTH_SHORT).show()
-//                        usbConnectChange(state)
-                        usbSerialManager.requestPermission(usbDevice)
                     }
 
                     UsbSerialManager.USB_STATE_DISCONNECTED -> {
+                        binding.progressBar.visibility = View.INVISIBLE
+                        binding.fab.hide()
+                        binding.fab2.hide()
                         Toast.makeText(this@MainActivity, "USB disconnected", Toast.LENGTH_SHORT).show()
-                        usbConnectChange(state)
-                    }
-                }
-            }
-            .addOnPermissionListener { usbDevice, permission ->
-                when (permission) {
-                    UsbSerialManager.USB_PERMISSION_GRANTED -> {
-                        usbPermissionGranted(usbDevice.deviceName)
-                        Toast.makeText(this@MainActivity, "USB permission granted", Toast.LENGTH_SHORT).show()
                     }
 
-                    UsbSerialManager.USB_PERMISSION_DENIED -> {
-                        Toast.makeText(this@MainActivity, "USB Permission denied", Toast.LENGTH_SHORT).show()
+                    UsbSerialManager.USB_STATE_READ_START -> {
+                        Toast.makeText(this@MainActivity, "USB read start", Toast.LENGTH_SHORT).show()
+                    }
+
+                    UsbSerialManager.USB_STATE_READ_END -> {
+                        Toast.makeText(this@MainActivity, "USB read end", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
-            .addOnErrorListener { usbDevice, e ->
+            .addOnErrorListener { e ->
                 e.printStackTrace()
             }
 
         setSupportActionBar(binding.toolbar)
 
         binding.fab.setOnClickListener {
-            Thread { uploadHex() }.start()
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        usbSerialManager.updateDevice()
-        usbSerialManager.usbDevice?.let { device ->
-            if (usbSerialManager.hasPermission(device)) {
-                usbPermissionGranted(device.deviceName)
-                Log.d(TAG, "permission")
-            } else {
-                usbSerialManager.requestPermission(device)
-                Log.w(TAG, "no permission")
+            CoroutineScope(Dispatchers.Main).launch {
+                uploadHex("hello.hex")
             }
-        } ?: run {
-            Log.w(TAG, "usbDevice null")
+        }
+        binding.fab2.setOnClickListener {
+            CoroutineScope(Dispatchers.Main).launch {
+                uploadHex("echo.hex")
+            }
+        }
+
+        binding.button.setOnClickListener {
+//            usbSerialManager.write("10")
+            usbSerialManager.updateBaudRate(9600)
         }
     }
 
-    private fun uploadHex() {
-        usbSerialManager.removeOnUsbReadListener()
-
+    private suspend fun uploadHex(fileName: String) {
         val arduinoBoard = Arduino(Boards.ARDUINO_UNO)
 
         val logger: IArduinoUploaderLogger = object : IArduinoUploaderLogger {
@@ -144,22 +129,23 @@ class MainActivity : AppCompatActivity() {
         val progress = IProgress<Double> { value ->
             binding.progressBar.progress = (value * 100).toInt()
         }
-        try {
-            val file = assets.open("Blink.uno.hex")
-            val reader: Reader = InputStreamReader(file)
-            val hexFileContents = LineReader(reader).readLines()
-            val uploader =
-                ArduinoSketchUploader(this@MainActivity, SerialPortStreamImpl::class.java, null, logger, progress)
-            deviceKeyName?.let { uploader.uploadSketch(hexFileContents, arduinoBoard, it) }
-        } catch (ex: ArduinoUploaderException) {
-            ex.printStackTrace()
-        } catch (ex: Exception) {
-            ex.printStackTrace()
-        }
-        binding.progressBar.progress = 100
 
-        usbSerialManager.addOnUsbReadListener(9600) { data ->
-            Log.i(TAG, "data: $data")
+        withContext(Dispatchers.Default) {
+            usbSerialManager.stopRead()
+
+            try {
+                val file = assets.open(fileName)
+                val reader: Reader = InputStreamReader(file)
+                val hexFileContents = LineReader(reader).readLines()
+                val uploader =
+                    ArduinoSketchUploader(this@MainActivity, SerialPortStreamImpl::class.java, null, logger, progress)
+                deviceKeyName?.let { uploader.uploadSketch(hexFileContents, arduinoBoard, it) }
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
+            binding.progressBar.progress = 100
+
+            usbSerialManager.startRead()
         }
     }
 
